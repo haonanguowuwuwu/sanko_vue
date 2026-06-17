@@ -1,0 +1,1345 @@
+openapi: 3.0.3
+info:
+  title: Sanko Read API
+  description: |
+    前端阅读应用（sanko_read）与后端的接口契约。
+
+    **说明**
+    - 本文档由前端 `sanko_read/src/api/` 整理，作为后端实现依据
+    - 路径与字段名请保持一致；若有调整需前后端协商后同步更新本文档
+    - 后端实现后可使用 Knife4j（`/doc.html`）维护在线文档
+    - 本文档可导入 Apifox / Postman 进行 Mock 与联调
+
+    **前端环境变量**
+    - `VITE_API_BASE_URL`：默认 `http://localhost:8080`
+    - `VITE_USE_MOCK=false` 时走真实后端
+  version: 1.0.0
+  contact:
+    name: Sanko Read Frontend
+
+servers:
+  - url: http://localhost:8080
+    description: 本地开发
+
+tags:
+  - name: 认证
+  - name: 图书
+  - name: 喜欢
+  - name: 书架
+  - name: 阅读内容
+  - name: 标注
+  - name: 书签
+  - name: 用户设置
+  - name: 备份
+  - name: AI聊天
+
+security:
+  - BearerAuth: []
+
+paths:
+  /api/auth/login:
+    post:
+      tags: [认证]
+      summary: 登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              username: demo
+              password: "123456"
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResult'
+
+  /api/auth/logout:
+    post:
+      tags: [认证]
+      summary: 登出
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/auth/me:
+    get:
+      tags: [认证]
+      summary: 当前登录用户
+      responses:
+        '200':
+          description: 已登录
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/books:
+    get:
+      tags: [图书]
+      summary: 书库列表（不含回收站）
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Book'
+
+  /api/books/trash:
+    get:
+      tags: [图书]
+      summary: 回收站列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Book'
+
+  /api/books/search:
+    get:
+      tags: [图书]
+      summary: 搜索图书
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 搜索关键词（标题、作者、分类）
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Book'
+
+  /api/books/import:
+    post:
+      tags: [图书]
+      summary: 导入图书
+      description: 上传 EPUB 或 PDF 文件
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 导入成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Book'
+
+  /api/books/{id}:
+    get:
+      tags: [图书]
+      summary: 图书详情
+      parameters:
+        - $ref: '#/components/parameters/BookId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Book'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [图书]
+      summary: 删除图书
+      description: |
+        - 无 body 或 `permanent` 为 false：从书库删除（是否进回收站由服务端结合用户设置 `disableRecycleBin` 决定）
+        - `permanent: true`：从回收站永久删除
+      parameters:
+        - $ref: '#/components/parameters/BookId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteBookRequest'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/books/{id}/trash:
+    post:
+      tags: [图书]
+      summary: 移入回收站
+      parameters:
+        - $ref: '#/components/parameters/BookId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/books/{id}/restore:
+    post:
+      tags: [图书]
+      summary: 从回收站恢复
+      parameters:
+        - $ref: '#/components/parameters/BookId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/books/{id}/progress:
+    patch:
+      tags: [图书]
+      summary: 更新阅读进度
+      description: 可只传 `lastReadAt`（打开书籍时）或只传 `progress`，也可同时传
+      parameters:
+        - $ref: '#/components/parameters/BookId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookProgressPayload'
+            examples:
+              progress:
+                value:
+                  progress: 36.5
+                  lastReadAt: "2026-06-17"
+              lastReadOnly:
+                value:
+                  lastReadAt: "2026-06-17"
+      responses:
+        '200':
+          description: 成功，返回更新后的图书
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Book'
+
+  /api/books/{id}/content:
+    get:
+      tags: [阅读内容]
+      summary: 获取全书阅读内容（所有 spread）
+      parameters:
+        - $ref: '#/components/parameters/BookId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ReaderSpread'
+
+  /api/books/{id}/content/spreads/{index}:
+    get:
+      tags: [阅读内容]
+      summary: 获取单个 spread
+      parameters:
+        - $ref: '#/components/parameters/BookId'
+        - name: index
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+          description: spread 下标，从 0 开始
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReaderSpread'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/books/{id}/ai/chat:
+    post:
+      tags: [AI聊天]
+      summary: 阅读页 AI 助手
+      parameters:
+        - $ref: '#/components/parameters/BookId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: 成功（当前前端为同步 JSON；后续可扩展 SSE 流式）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ChatResponse'
+
+  /api/favorites:
+    get:
+      tags: [喜欢]
+      summary: 获取喜欢的图书 ID 列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: string
+                        example: ["book-1", "book-3"]
+
+  /api/favorites/{bookId}:
+    post:
+      tags: [喜欢]
+      summary: 添加喜欢
+      parameters:
+        - $ref: '#/components/parameters/BookIdPath'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+    delete:
+      tags: [喜欢]
+      summary: 取消喜欢
+      parameters:
+        - $ref: '#/components/parameters/BookIdPath'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/bookshelves:
+    get:
+      tags: [书架]
+      summary: 书架列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Bookshelf'
+    post:
+      tags: [书架]
+      summary: 创建书架
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookshelfRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Bookshelf'
+
+  /api/bookshelves/reorder:
+    put:
+      tags: [书架]
+      summary: 书架排序
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderBookshelvesRequest'
+      responses:
+        '200':
+          description: 成功，返回排序后的完整列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Bookshelf'
+
+  /api/bookshelves/{id}:
+    patch:
+      tags: [书架]
+      summary: 重命名书架
+      parameters:
+        - $ref: '#/components/parameters/ShelfId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameBookshelfRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Bookshelf'
+    delete:
+      tags: [书架]
+      summary: 删除书架
+      parameters:
+        - $ref: '#/components/parameters/ShelfId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/bookshelves/{id}/books:
+    post:
+      tags: [书架]
+      summary: 添加图书到书架
+      parameters:
+        - $ref: '#/components/parameters/ShelfId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddBookToShelfRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/bookshelves/{id}/books/{bookId}:
+    delete:
+      tags: [书架]
+      summary: 从书架移除图书
+      parameters:
+        - $ref: '#/components/parameters/ShelfId'
+        - $ref: '#/components/parameters/BookIdPath'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/annotations:
+    get:
+      tags: [标注]
+      summary: 标注列表（高亮 + 笔记）
+      parameters:
+        - name: bookId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 可选，按图书过滤
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ReaderHighlight'
+    post:
+      tags: [标注]
+      summary: 创建标注
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnotationRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReaderHighlight'
+
+  /api/annotations/{id}:
+    patch:
+      tags: [标注]
+      summary: 更新标注
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAnnotationRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReaderHighlight'
+    delete:
+      tags: [标注]
+      summary: 删除标注
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/bookmarks:
+    get:
+      tags: [书签]
+      summary: 书签列表
+      parameters:
+        - name: bookId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 可选，按图书过滤
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BookmarkRecord'
+    post:
+      tags: [书签]
+      summary: 创建/替换书签
+      description: 每本书仅保留一个书签；若该书已有书签，应替换为新的 spreadIndex
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookmarkRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BookmarkRecord'
+
+  /api/bookmarks/{id}:
+    delete:
+      tags: [书签]
+      summary: 删除书签
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/settings:
+    get:
+      tags: [用户设置]
+      summary: 获取用户设置
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AppSettingsDto'
+    patch:
+      tags: [用户设置]
+      summary: 部分更新用户设置
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppSettingsDtoPartial'
+      responses:
+        '200':
+          description: 成功，返回完整设置
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AppSettingsDto'
+
+  /api/backup:
+    post:
+      tags: [备份]
+      summary: 创建备份
+      description: 服务端生成备份文件；Mock 模式下前端本地下载 JSON
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BackupResult'
+
+  /api/restore:
+    post:
+      tags: [备份]
+      summary: 从备份恢复
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JSON 备份文件
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BackupResult'
+
+  /api/chat:
+    post:
+      tags: [AI聊天]
+      summary: 全局 AI 聊天
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: 成功（当前前端为同步 JSON；后续可扩展 SSE 流式）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ChatResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 登录后获得的 token，前端请求头 `Authorization: Bearer {token}`
+
+  parameters:
+    BookId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    BookIdPath:
+      name: bookId
+      in: path
+      required: true
+      schema:
+        type: string
+    ShelfId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    Unauthorized:
+      description: 未登录或 token 过期（前端会清除本地 token）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            code: 401
+            message: 未登录或登录已过期
+            data: null
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+
+  schemas:
+    ApiResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          description: 0 表示成功，非 0 表示业务错误
+          example: 0
+        message:
+          type: string
+          example: ok
+        data:
+          nullable: true
+          description: 业务数据，类型随接口变化
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    UserInfo:
+      type: object
+      required: [id, username]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+
+    AuthResult:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserInfo'
+
+    Book:
+      type: object
+      required:
+        - id
+        - title
+        - author
+        - progress
+        - coverColor
+        - coverTitle
+        - fileSize
+        - format
+        - addedAt
+        - category
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        progress:
+          type: number
+          format: float
+          description: 阅读进度百分比，如 36.0
+        coverColor:
+          type: string
+          description: 封面背景色，如 "#e86c1a"
+        coverTitle:
+          type: string
+        coverSubtitle:
+          type: string
+        coverUrl:
+          type: string
+          description: 封面图片 URL（可选）
+        fileSize:
+          type: string
+          description: 人类可读大小，如 "12.6 MB"
+        format:
+          type: string
+          enum: [PDF, EPUB]
+        addedAt:
+          type: string
+          description: 添加日期，格式 YYYY-MM-DD
+        category:
+          type: string
+        lastReadAt:
+          type: string
+          description: 最后阅读日期，格式 YYYY-MM-DD
+
+    BookProgressPayload:
+      type: object
+      properties:
+        progress:
+          type: number
+          format: float
+        lastReadAt:
+          type: string
+          description: 格式 YYYY-MM-DD
+
+    DeleteBookRequest:
+      type: object
+      properties:
+        permanent:
+          type: boolean
+          description: true 表示永久删除（通常用于回收站）
+
+    Bookshelf:
+      type: object
+      required: [id, name, bookIds]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        bookIds:
+          type: array
+          items:
+            type: string
+
+    CreateBookshelfRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    RenameBookshelfRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    ReorderBookshelvesRequest:
+      type: object
+      required: [orderedIds]
+      properties:
+        orderedIds:
+          type: array
+          items:
+            type: string
+
+    AddBookToShelfRequest:
+      type: object
+      required: [bookId]
+      properties:
+        bookId:
+          type: string
+
+    ReaderBlock:
+      type: object
+      required: [id, type, text]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [paragraph, title, subtitle]
+        text:
+          type: string
+        defaultBg:
+          type: string
+          enum: [gray]
+
+    ReaderPage:
+      type: object
+      required: [page, blocks]
+      properties:
+        page:
+          type: integer
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReaderBlock'
+
+    ReaderSpread:
+      type: object
+      required: [chapter, left, right]
+      properties:
+        chapter:
+          type: string
+        left:
+          $ref: '#/components/schemas/ReaderPage'
+        right:
+          $ref: '#/components/schemas/ReaderPage'
+
+    ReaderHighlight:
+      type: object
+      required:
+        - id
+        - bookId
+        - blockId
+        - spreadIndex
+        - start
+        - end
+        - color
+        - quote
+        - chapter
+        - createdAt
+      properties:
+        id:
+          type: string
+        bookId:
+          type: string
+        blockId:
+          type: string
+          description: 对应 ReaderBlock.id
+        spreadIndex:
+          type: integer
+          minimum: 0
+        start:
+          type: integer
+          description: 在 block.text 中的起始字符偏移（含）
+        end:
+          type: integer
+          description: 在 block.text 中的结束字符偏移（不含）
+        color:
+          type: string
+          enum: [blue, green, gray]
+        quote:
+          type: string
+          description: 选中的原文
+        chapter:
+          type: string
+        note:
+          type: string
+          description: 笔记内容（可选）
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateAnnotationRequest:
+      type: object
+      required:
+        - bookId
+        - blockId
+        - spreadIndex
+        - start
+        - end
+        - color
+        - quote
+        - chapter
+      properties:
+        bookId:
+          type: string
+        blockId:
+          type: string
+        spreadIndex:
+          type: integer
+        start:
+          type: integer
+        end:
+          type: integer
+        color:
+          type: string
+          enum: [blue, green, gray]
+        quote:
+          type: string
+        chapter:
+          type: string
+        note:
+          type: string
+
+    UpdateAnnotationRequest:
+      type: object
+      properties:
+        color:
+          type: string
+          enum: [blue, green, gray]
+        note:
+          type: string
+        quote:
+          type: string
+        start:
+          type: integer
+        end:
+          type: integer
+        spreadIndex:
+          type: integer
+        chapter:
+          type: string
+
+    BookmarkRecord:
+      type: object
+      required: [id, bookId, spreadIndex]
+      properties:
+        id:
+          type: string
+        bookId:
+          type: string
+        spreadIndex:
+          type: integer
+
+    CreateBookmarkRequest:
+      type: object
+      required: [bookId, spreadIndex]
+      properties:
+        bookId:
+          type: string
+        spreadIndex:
+          type: integer
+
+    AppSettingsDto:
+      type: object
+      required:
+        - disableRecycleBin
+        - hideBookshelfBooks
+        - directDeleteFromShelf
+        - noPdfCoverAsBookCover
+        - noCropBookCovers
+        - showBookshelfBookCount
+        - enableSoftwareProtection
+      properties:
+        disableRecycleBin:
+          type: boolean
+          description: true 时删除走永久删除，不进入回收站
+        hideBookshelfBooks:
+          type: boolean
+          description: 首页隐藏已在书架中的书（逻辑待前端完整接入）
+        directDeleteFromShelf:
+          type: boolean
+          description: 从书架直接删除（UI 有，逻辑待接）
+        noPdfCoverAsBookCover:
+          type: boolean
+        noCropBookCovers:
+          type: boolean
+        showBookshelfBookCount:
+          type: boolean
+          description: 侧栏是否显示书架图书数量
+        enableSoftwareProtection:
+          type: boolean
+          description: 启用软件保护，启动/退出需登录
+
+    AppSettingsDtoPartial:
+      type: object
+      description: PATCH 时可只传需要更新的字段
+      additionalProperties: false
+      properties:
+        disableRecycleBin:
+          type: boolean
+        hideBookshelfBooks:
+          type: boolean
+        directDeleteFromShelf:
+          type: boolean
+        noPdfCoverAsBookCover:
+          type: boolean
+        noCropBookCovers:
+          type: boolean
+        showBookshelfBookCount:
+          type: boolean
+        enableSoftwareProtection:
+          type: boolean
+
+    BackupResult:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        downloadUrl:
+          type: string
+          description: 备份文件下载地址（可选，由后端决定）
+
+    BackupPayload:
+      type: object
+      description: 备份/恢复 JSON 文件结构（参考）
+      properties:
+        books:
+          type: array
+          items:
+            $ref: '#/components/schemas/Book'
+        trashedBooks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Book'
+        favoriteIds:
+          type: array
+          items:
+            type: string
+        shelves:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bookshelf'
+        highlights:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReaderHighlight'
+        bookmarks:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookmarkRecord'
+        settings:
+          $ref: '#/components/schemas/AppSettingsDto'
+        exportedAt:
+          type: string
+          format: date-time
+
+    ChatMessageDto:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+
+    ChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessageDto'
+
+    ChatResponse:
+      type: object
+      required: [reply]
+      properties:
+        reply:
+          type: string

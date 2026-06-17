@@ -1,0 +1,30 @@
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
+import ElementPlus from 'element-plus'
+import 'element-plus/dist/index.css'
+import '@/assets/styles/variables.css'
+
+function resetLegacyAppearanceOverrides() {
+  const root = document.documentElement
+  root.style.removeProperty('--sanko-green')
+  root.style.removeProperty('--sanko-green-hover')
+  document.body.style.removeProperty('font-family')
+  root.classList.remove('sanko-dark')
+  delete root.dataset.appearance
+}
+
+resetLegacyAppearanceOverrides()
+
+import App from './App.vue'
+import router from './router'
+import { bootstrapApp } from './bootstrap'
+
+const app = createApp(App)
+const pinia = createPinia()
+
+app.use(pinia)
+app.use(router)
+app.use(ElementPlus)
+
+await bootstrapApp()
+app.mount('#app')
