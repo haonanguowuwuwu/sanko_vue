@@ -2,10 +2,17 @@ import type { Book } from '@/types/book'
 import { SAMPLE_BOOKS, formatAddedDate } from '@/types/book'
 import type { Bookshelf } from '@/types/bookshelf'
 import { DEFAULT_BOOKSHELVES } from '@/types/bookshelf'
-import type { ReaderHighlight, ReaderSpread } from '@/types/reader'
+import type { ReaderBookmark, ReaderHighlight, ReaderSpread } from '@/types/reader'
 import { READER_SPREADS } from '@/data/readerContent'
 import type { AppSettingsDto } from '@/api/types'
 import { formatAnnotationTime } from '@/utils/readerMeta'
+import {
+  clearMockBookFiles,
+  formatFileSize,
+  parseFormatFromFileName,
+  removeMockBookFile,
+  storeMockBookFile,
+} from '@/api/mock/fileStore'
 
 let bookIdCounter = 1
 let shelfIdCounter = 1
@@ -25,7 +32,7 @@ export const mockState = {
     bookIds: [...s.bookIds],
   })) as Bookshelf[],
   highlights: [] as ReaderHighlight[],
-  bookmarks: [] as { id: string; bookId: string; spreadIndex: number }[],
+  bookmarks: [] as ReaderBookmark[],
   settings: {
     disableRecycleBin: true,
     hideBookshelfBooks: false,
@@ -58,19 +65,34 @@ export function mockImportSampleBook(): Book | null {
   return book
 }
 
-export function mockImportFromFile(_file: File): Book {
-  const book = mockImportSampleBook()
-  if (book) return book
-
-  const fallback = SAMPLE_BOOKS[0]!
-  const created: Book = {
-    ...fallback,
-    id: `book-${bookIdCounter++}`,
-    title: _file.name.replace(/\.[^.]+$/, ''),
-    addedAt: formatAddedDate(),
+export function mockImportFromFile(file: File): Book {
+  const format = parseFormatFromFileName(file.name)
+  if (!format) {
+    throw new Error(`暂不支持该文件格式：.${file.name.split('.').pop() ?? ''}`)
   }
-  mockState.books.push(created)
-  return created
+
+  const title = file.name.replace(/\.[^.]+$/, '')
+  const book: Book = {
+    id: `book-${bookIdCounter++}`,
+    title: title.startsWith('《') ? title : `《${title}》`,
+    author: '本地导入',
+    progress: 0,
+    coverColor: '#5a7a6a',
+    coverTitle: title.replace(/^《|》$/g, ''),
+    fileSize: formatFileSize(file.size),
+    format,
+    addedAt: formatAddedDate(),
+    category: '本地导入',
+  }
+
+  mockState.books.push(book)
+  return book
+}
+
+/** 读取文件并写入内存书库，需在 mockImportFromFile 之后调用 */
+export async function mockStoreImportedFile(bookId: string, file: File): Promise<void> {
+  const buffer = await file.arrayBuffer()
+  storeMockBookFile(bookId, file, buffer)
 }
 
 export function mockGetReaderContent(_bookId: string): ReaderSpread[] {
@@ -105,7 +127,7 @@ export function mockResetFromBackup(data: {
   favoriteIds: string[]
   shelves: Bookshelf[]
   highlights: ReaderHighlight[]
-  bookmarks: { id: string; bookId: string; spreadIndex: number }[]
+  bookmarks: ReaderBookmark[]
   settings: AppSettingsDto
 }) {
   mockState.books = [...data.books]
@@ -115,6 +137,11 @@ export function mockResetFromBackup(data: {
   mockState.highlights = [...data.highlights]
   mockState.bookmarks = [...data.bookmarks]
   mockState.settings = { ...data.settings }
+  clearMockBookFiles()
+}
+
+export function mockRemoveBookFile(bookId: string) {
+  removeMockBookFile(bookId)
 }
 
 export function mockCreateBackupPayload() {

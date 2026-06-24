@@ -1,4 +1,4 @@
-export type HighlightColor = 'blue' | 'green' | 'gray'
+export type HighlightColor = 'blue' | 'green' | 'cyan' | 'yellow' | 'purple' | 'gray'
 
 export interface ReaderBlock {
   id: string
@@ -24,10 +24,16 @@ export interface ReaderHighlight {
   quote: string
   chapter: string
   note?: string
+  /** kookit rangy 字符 range 的 JSON 字符串 */
+  range?: string
+  chapterDocIndex?: number
   createdAt: string
 }
 
 export interface ReaderBookmark {
+  id: string
   bookId: string
   spreadIndex: number
+  chapter?: string
+  createdAt?: string
 }

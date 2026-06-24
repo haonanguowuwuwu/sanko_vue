@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-ssr/
+packages/kookit/node_modules/
 .env
 .env.local
 .env.*.local

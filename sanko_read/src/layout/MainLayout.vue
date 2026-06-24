@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
@@ -9,10 +9,10 @@ import {
   Setting,
   Folder,
   HomeFilled,
+  Grid,
   EditPen,
   Collection,
   Delete,
-  ChatDotRound,
   ArrowUp,
   ArrowDown,
 } from '@element-plus/icons-vue'
@@ -53,11 +53,11 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const menuItems = [
   { path: '/', label: '首页', icon: HomeFilled },
+  { path: '/categories', label: '分类', icon: Grid },
   { path: '/favorites', label: '喜欢', icon: HeartIcon },
   { path: '/notes', label: '笔记', icon: EditPen },
   { path: '/highlights', label: '高亮', icon: Collection },
   { path: '/recycle-bin', label: '回收站', icon: Delete },
-  { path: '/chat', label: '聊天', icon: ChatDotRound },
 ]
 
 const isActive = (path: string) => {
@@ -66,6 +66,11 @@ const isActive = (path: string) => {
 }
 
 const isShelfActive = (shelfId: string) => route.name === 'shelf' && route.params.shelfId === shelfId
+
+const isLocalLibraryActive = computed(() => route.name === 'library')
+
+const isHomeRoute = computed(() => route.name === 'home')
+const isCategoriesRoute = computed(() => route.name === 'categories')
 
 const openManageBookshelf = () => {
   showManageBookshelfDialog.value = true
@@ -94,10 +99,6 @@ const handleImportBooks = () => {
     ElMessage.warning('请先登录后再导入书籍')
     pendingImport.value = true
     showLoginDialog.value = true
-    return
-  }
-  if (USE_MOCK) {
-    void startImport()
     return
   }
   importFileInput.value?.click()
@@ -165,7 +166,9 @@ onMounted(() => {
 <template>
   <el-container
     class="main-layout"
-    :style="{ '--sidebar-current-width': isCollapsed ? '72px' : '220px' }"
+    :style="{
+      '--sidebar-current-width': isCollapsed ? '52px' : 'var(--sanko-sidebar-width)',
+    }"
   >
     <el-header class="main-header">
       <div class="header-left">
@@ -228,8 +231,11 @@ onMounted(() => {
     </el-header>
 
     <el-container class="main-body">
-      <el-aside :width="isCollapsed ? '72px' : '220px'" class="main-aside">
-        <nav class="sidebar-nav">
+      <el-aside
+        :width="isCollapsed ? '52px' : 'var(--sanko-sidebar-width)'"
+        class="main-aside"
+      >
+        <nav class="sidebar-nav" :class="{ 'is-collapsed': isCollapsed }">
           <router-link
             v-for="item in menuItems"
             :key="item.path"
@@ -237,7 +243,7 @@ onMounted(() => {
             class="nav-item"
             :class="{ 'is-active': isActive(item.path) }"
           >
-            <el-icon :size="22"><component :is="item.icon" :size="22" /></el-icon>
+            <el-icon :size="18"><component :is="item.icon" :size="18" /></el-icon>
             <span v-show="!isCollapsed" class="nav-label">{{ item.label }}</span>
           </router-link>
 
@@ -251,7 +257,16 @@ onMounted(() => {
             </button>
 
             <template v-if="bookshelfExpanded">
-              <button type="button" class="bookshelf-link" @click="openManageBookshelf">管理书架</button>
+              <router-link
+                to="/library"
+                class="bookshelf-local"
+                :class="{ 'is-active': isLocalLibraryActive }"
+              >
+                本地书架
+              </router-link>
+              <button type="button" class="bookshelf-link" @click="openManageBookshelf">
+                管理书架
+              </button>
               <router-link
                 v-for="shelf in shelves"
                 :key="shelf.id"
@@ -269,7 +284,13 @@ onMounted(() => {
         </nav>
       </el-aside>
 
-      <el-main class="main-content">
+      <el-main
+        class="main-content"
+        :class="{
+          'main-content--home': isHomeRoute,
+          'main-content--categories': isCategoriesRoute,
+        }"
+      >
         <div class="main-content__inner">
           <router-view />
         </div>
@@ -285,7 +306,7 @@ onMounted(() => {
     <input
       ref="importFileInput"
       type="file"
-      accept=".pdf,.epub,.txt,.mobi"
+      accept=".pdf,.epub,.txt,.docx,.mobi,.md"
       hidden
       @change="onImportFileSelected"
     />
@@ -415,20 +436,27 @@ onMounted(() => {
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  padding: 16px 12px;
-  gap: 6px;
+  padding: 10px 8px;
+  gap: 1px;
+}
+
+.sidebar-nav.is-collapsed .nav-item {
+  justify-content: center;
+  gap: 0;
+  padding: 8px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 18px;
+  gap: 10px;
+  padding: 7px 12px;
   border-radius: 999px;
   color: var(--sanko-green);
   text-decoration: none;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
+  line-height: 1.3;
   transition:
     background 0.15s,
     color 0.15s;
@@ -448,8 +476,8 @@ onMounted(() => {
 }
 
 .bookshelf-section {
-  margin-top: 28px;
-  padding: 0 18px;
+  margin-top: 14px;
+  padding: 0 4px;
 }
 
 .bookshelf-header {
@@ -457,24 +485,49 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 0;
-  margin-bottom: 8px;
+  padding: 4px 8px;
+  margin-bottom: 2px;
   border: none;
   background: none;
-  font-size: 15px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--sanko-text-secondary);
   cursor: pointer;
+}
+
+.bookshelf-local {
+  display: block;
+  width: 100%;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: #1a8a8f;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bookshelf-local:hover {
+  background: rgba(26, 138, 143, 0.08);
+}
+
+.bookshelf-local.is-active {
+  background: #1a8a8f;
+  color: #fff;
 }
 
 .bookshelf-link {
   display: block;
   width: 100%;
-  padding: 8px 0;
+  padding: 5px 12px;
+  margin-top: 1px;
   border: none;
   background: none;
   text-align: left;
-  font-size: 16px;
-  color: var(--sanko-text);
+  font-size: 14px;
+  line-height: 1.3;
+  color: var(--sanko-green);
   cursor: pointer;
 }
 
@@ -484,11 +537,12 @@ onMounted(() => {
 
 .shelf-item {
   display: block;
-  padding: 10px 16px;
-  margin-top: 4px;
+  padding: 6px 12px;
+  margin-top: 1px;
   border-radius: 999px;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
+  line-height: 1.3;
   color: var(--sanko-green);
   text-decoration: none;
   transition: background 0.15s, color 0.15s;
@@ -504,8 +558,8 @@ onMounted(() => {
 }
 
 .shelf-item__count {
-  margin-left: 6px;
-  font-size: 13px;
+  margin-left: 4px;
+  font-size: 12px;
   opacity: 0.75;
 }
 
@@ -516,6 +570,14 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.main-content--home {
+  padding: 20px 32px;
+}
+
+.main-content--categories {
+  padding: 20px 32px;
 }
 
 .main-content__inner {

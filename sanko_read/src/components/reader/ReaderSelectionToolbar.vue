@@ -1,20 +1,27 @@
 <script setup lang="ts">
-import { EditPen, Notebook } from '@element-plus/icons-vue'
+import { EditPen, Notebook, Delete } from '@element-plus/icons-vue'
 import type { HighlightColor } from '@/types/reader'
+import { HIGHLIGHT_COLOR_IDS, getHighlightColorDef } from '@/reader/highlightColors'
 
 defineProps<{
   visible: boolean
   x: number
   y: number
+  showDelete?: boolean
 }>()
 
 const emit = defineEmits<{
   highlight: [color: HighlightColor]
   note: []
+  delete: []
   close: []
 }>()
 
-const colors: HighlightColor[] = ['blue', 'green']
+const colors = HIGHLIGHT_COLOR_IDS
+
+function swatchStyle(color: HighlightColor) {
+  return { background: getHighlightColorDef(color).swatch }
+}
 </script>
 
 <template>
@@ -24,19 +31,31 @@ const colors: HighlightColor[] = ['blue', 'green']
     :style="{ left: `${x}px`, top: `${y}px` }"
     @mousedown.prevent
   >
-    <button type="button" class="selection-toolbar__btn" title="高亮" @click.stop="emit('highlight', 'green')">
-      <el-icon><EditPen /></el-icon>
-    </button>
-    <button type="button" class="selection-toolbar__btn" title="笔记" @click.stop="emit('note')">
-      <el-icon><Notebook /></el-icon>
-    </button>
+    <div class="selection-toolbar__actions">
+      <button type="button" class="selection-toolbar__btn" title="高亮" @click.stop="emit('highlight', 'green')">
+        <el-icon><EditPen /></el-icon>
+      </button>
+      <button type="button" class="selection-toolbar__btn" title="笔记" @click.stop="emit('note')">
+        <el-icon><Notebook /></el-icon>
+      </button>
+      <button
+        v-if="showDelete"
+        type="button"
+        class="selection-toolbar__btn selection-toolbar__btn--delete"
+        title="删除"
+        @click.stop="emit('delete')"
+      >
+        <el-icon><Delete /></el-icon>
+      </button>
+    </div>
     <div class="selection-toolbar__colors">
       <button
         v-for="color in colors"
         :key="color"
         type="button"
         class="selection-toolbar__color"
-        :class="`selection-toolbar__color--${color}`"
+        :style="swatchStyle(color)"
+        :title="getHighlightColorDef(color).label"
         @click.stop="emit('highlight', color)"
       />
     </div>
@@ -58,6 +77,13 @@ const colors: HighlightColor[] = ['blue', 'green']
   transform: translate(-50%, -100%) translateY(-8px);
 }
 
+.selection-toolbar__actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+
 .selection-toolbar__btn {
   width: 32px;
   height: 32px;
@@ -76,9 +102,20 @@ const colors: HighlightColor[] = ['blue', 'green']
   background: rgba(0, 90, 43, 0.08);
 }
 
+.selection-toolbar__btn--delete {
+  color: #c45656;
+}
+
+.selection-toolbar__btn--delete:hover {
+  background: rgba(196, 86, 86, 0.1);
+}
+
 .selection-toolbar__colors {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 72px;
 }
 
 .selection-toolbar__color {
@@ -89,13 +126,5 @@ const colors: HighlightColor[] = ['blue', 'green']
   box-shadow: 0 0 0 1px #ddd;
   cursor: pointer;
   padding: 0;
-}
-
-.selection-toolbar__color--blue {
-  background: rgba(100, 180, 255, 0.8);
-}
-
-.selection-toolbar__color--green {
-  background: rgba(120, 200, 140, 0.9);
 }
 </style>

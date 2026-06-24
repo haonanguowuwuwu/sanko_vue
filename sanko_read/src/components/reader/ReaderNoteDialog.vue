@@ -2,16 +2,30 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { HighlightColor } from '@/types/reader'
+import { HIGHLIGHT_COLOR_IDS, getHighlightColorDef } from '@/reader/highlightColors'
 
-const props = defineProps<{
-  visible: boolean
-  quote: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    visible: boolean
+    quote: string
+    initialNote?: string
+    initialColor?: HighlightColor
+    editingId?: string
+  }>(),
+  {
+    initialNote: '',
+    initialColor: 'green',
+    editingId: undefined,
+  },
+)
 
 const emit = defineEmits<{
   'update:visible': [value: boolean]
-  confirm: [payload: { note: string; color: HighlightColor }]
+  confirm: [payload: { note: string; color: HighlightColor; editingId?: string }]
+  delete: [editingId: string]
 }>()
+
+const isEditing = computed(() => Boolean(props.editingId))
 
 const noteText = ref('')
 const selectedColor = ref<HighlightColor>('green')
@@ -20,26 +34,26 @@ watch(
   () => props.visible,
   (open) => {
     if (open) {
-      noteText.value = ''
-      selectedColor.value = 'green'
+      noteText.value = props.initialNote
+      selectedColor.value = props.initialColor
     }
   },
 )
 
-const colors: HighlightColor[] = ['blue', 'green']
+const colors = HIGHLIGHT_COLOR_IDS
 
 const accentStyle = computed(() => {
-  if (selectedColor.value === 'blue') {
-    return {
-      bar: '#64b4ff',
-      inputBg: 'rgba(100, 180, 255, 0.18)',
-    }
-  }
+  const def = getHighlightColorDef(selectedColor.value)
   return {
-    bar: 'var(--sanko-green)',
-    inputBg: 'rgba(120, 200, 140, 0.18)',
+    bar: def.accent,
+    inputBg: def.inputBg,
+    primary: def.accent,
   }
 })
+
+function swatchStyle(color: HighlightColor) {
+  return { background: getHighlightColorDef(color).swatch }
+}
 
 const handleClose = () => {
   emit('update:visible', false)
@@ -59,7 +73,17 @@ const handleConfirm = () => {
     ElMessage.warning('请输入笔记内容')
     return
   }
-  emit('confirm', { note: noteText.value, color: selectedColor.value })
+  emit('confirm', {
+    note: noteText.value,
+    color: selectedColor.value,
+    editingId: props.editingId,
+  })
+  emit('update:visible', false)
+}
+
+const handleDelete = () => {
+  if (!props.editingId) return
+  emit('delete', props.editingId)
   emit('update:visible', false)
 }
 </script>
@@ -74,9 +98,19 @@ const handleConfirm = () => {
     class="reader-note-dialog"
     @update:model-value="emit('update:visible', $event)"
   >
-    <div class="reader-note-dialog__quote">
-      <span class="reader-note-dialog__bar" :style="{ background: accentStyle.bar }" />
-      <p>{{ quote }}</p>
+    <div class="reader-note-dialog__header">
+      <div class="reader-note-dialog__quote">
+        <span class="reader-note-dialog__bar" :style="{ background: accentStyle.bar }" />
+        <p>{{ quote }}</p>
+      </div>
+      <button
+        v-if="isEditing"
+        type="button"
+        class="reader-note-dialog__delete"
+        @click="handleDelete"
+      >
+        删除
+      </button>
     </div>
 
     <el-input
@@ -95,10 +129,9 @@ const handleConfirm = () => {
           :key="color"
           type="button"
           class="reader-note-dialog__color"
-          :class="[
-            `reader-note-dialog__color--${color}`,
-            { 'is-active': selectedColor === color },
-          ]"
+          :class="{ 'is-active': selectedColor === color }"
+          :style="swatchStyle(color)"
+          :title="getHighlightColorDef(color).label"
           @click="selectedColor = color"
         />
       </div>
@@ -108,6 +141,7 @@ const handleConfirm = () => {
         <button
           type="button"
           class="reader-note-dialog__action reader-note-dialog__action--primary"
+          :style="{ color: accentStyle.primary }"
           @click="handleConfirm"
         >
           确认
@@ -118,10 +152,33 @@ const handleConfirm = () => {
 </template>
 
 <style scoped>
+.reader-note-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 .reader-note-dialog__quote {
   display: flex;
   gap: 12px;
-  margin-bottom: 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+.reader-note-dialog__delete {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 14px;
+  color: #c45656;
+  cursor: pointer;
+  line-height: 1.7;
+}
+
+.reader-note-dialog__delete:hover {
+  color: #a03030;
 }
 
 .reader-note-dialog__bar {
@@ -151,11 +208,14 @@ const handleConfirm = () => {
   align-items: center;
   justify-content: space-between;
   margin-top: 16px;
+  gap: 12px;
 }
 
 .reader-note-dialog__colors {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 160px;
 }
 
 .reader-note-dialog__color {
@@ -165,14 +225,7 @@ const handleConfirm = () => {
   border: 2px solid transparent;
   cursor: pointer;
   padding: 0;
-}
-
-.reader-note-dialog__color--blue {
-  background: rgba(100, 180, 255, 0.8);
-}
-
-.reader-note-dialog__color--green {
-  background: rgba(120, 200, 140, 0.9);
+  transition: border-color 0.15s;
 }
 
 .reader-note-dialog__color.is-active {
@@ -182,6 +235,7 @@ const handleConfirm = () => {
 .reader-note-dialog__actions {
   display: flex;
   gap: 16px;
+  flex-shrink: 0;
 }
 
 .reader-note-dialog__action {
@@ -194,8 +248,8 @@ const handleConfirm = () => {
 }
 
 .reader-note-dialog__action--primary {
-  color: var(--sanko-green);
   font-weight: 600;
+  transition: color 0.15s;
 }
 
 .reader-note-dialog__action:hover {

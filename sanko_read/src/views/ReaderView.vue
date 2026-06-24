@@ -1,18 +1,23 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Menu } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useBooksStore } from '@/stores/books'
 import { useReaderAnnotationsStore } from '@/stores/readerAnnotations'
-import { getChapterByBlockId } from '@/data/readerContent'
-import { getBookContent } from '@/api/annotations'
-import type { HighlightColor, ReaderSpread } from '@/types/reader'
-import ReaderPageContent from '@/components/reader/ReaderPageContent.vue'
-import ReaderSelectionToolbar from '@/components/reader/ReaderSelectionToolbar.vue'
-import ReaderNoteDialog from '@/components/reader/ReaderNoteDialog.vue'
+import KookitReaderHost from '@/components/reader/KookitReaderHost.vue'
 import ReaderAiPanel from '@/components/reader/ReaderAiPanel.vue'
 import ReaderBookmarkIcon from '@/components/reader/ReaderBookmarkIcon.vue'
+import ReaderSettingsPanel from '@/components/reader/ReaderSettingsPanel.vue'
+import ReaderNavPanel from '@/components/reader/ReaderNavPanel.vue'
+import ReaderSelectionToolbar from '@/components/reader/ReaderSelectionToolbar.vue'
+import ReaderNoteDialog from '@/components/reader/ReaderNoteDialog.vue'
+import type { ReaderChapterItem } from '@/reader/useKookitRendition'
+import type { TextSelectionPayload } from '@/reader/highlightUtils'
+import type { HighlightColor } from '@/types/reader'
+import { configService } from '@/reader/configService'
+import { isPdfFormat, supportsAnnotationHighlight } from '@/reader/readerSettings'
+import { exitReader } from '@/utils/readerNavigation'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,195 +27,360 @@ const annotationsStore = useReaderAnnotationsStore()
 const bookId = computed(() => route.params.id as string)
 const book = computed(() => booksStore.getBookById(bookId.value))
 
-const spreads = ref<ReaderSpread[]>([])
+const readerHostRef = ref<InstanceType<typeof KookitReaderHost> | null>(null)
 const contentLoading = ref(true)
-const currentSpread = ref(0)
+const loadError = ref<string | null>(null)
 const showAiPanel = ref(false)
+const showMenuPanel = ref(false)
+const chapterTitle = ref('')
+const progressPercent = ref(0)
+const navChapters = ref<ReaderChapterItem[]>([])
+const activeChapterIndex = ref(0)
+const activeSpreadIndex = ref(0)
+const pendingSelection = ref<TextSelectionPayload | null>(null)
+const selectionToolbar = ref({ visible: false, x: 0, y: 0 })
 const showNoteDialog = ref(false)
-const showToolbar = ref(false)
-const toolbarPos = ref({ x: 0, y: 0 })
+const noteQuote = ref('')
+const noteInitial = ref('')
+const noteColor = ref<HighlightColor>('green')
+const editingNoteId = ref<string | undefined>(undefined)
 
-const pendingSelection = ref<{
-  blockId: string
-  text: string
-  start: number
-  end: number
-} | null>(null)
-
-const totalSpreads = computed(() => spreads.value.length)
-
-const current = computed(() => spreads.value[currentSpread.value])
+const readerSurfaceColor = ref(configService.getReaderConfig('backgroundColor') || '#f7f3eb')
 
 const progress = computed(() => {
   if (!book.value) return '0.00%'
-  const base = book.value.progress
-  const maxIndex = Math.max(totalSpreads.value - 1, 1)
-  const extra = (currentSpread.value / maxIndex) * 0.5
-  return `${Math.min(base + extra, 100).toFixed(2)}%`
+  const live = progressPercent.value
+  if (live > 0) return `${live.toFixed(2)}%`
+  return `${book.value.progress.toFixed(2)}%`
 })
 
+const currentSpreadIndex = computed(() => activeSpreadIndex.value)
+
 const isBookmarked = computed(() =>
-  annotationsStore.isBookmarked(bookId.value, currentSpread.value),
+  annotationsStore.isBookmarked(bookId.value, currentSpreadIndex.value),
 )
 
-async function loadContent() {
-  contentLoading.value = true
-  try {
-    spreads.value = await getBookContent(bookId.value)
-    const savedSpread = annotationsStore.getBookmarkSpread(bookId.value)
-    if (savedSpread !== undefined && savedSpread < spreads.value.length) {
-      currentSpread.value = savedSpread
-    }
-  } finally {
-    contentLoading.value = false
-  }
-}
+const isPdfBook = computed(() => (book.value ? isPdfFormat(book.value.format) : false))
 
-async function syncProgressFromSpread() {
-  if (!book.value || totalSpreads.value <= 1) return
-  const maxIndex = Math.max(totalSpreads.value - 1, 1)
-  const nextProgress = Math.min(
-    100,
-    Math.max(book.value.progress, (currentSpread.value / maxIndex) * 100),
+const supportsTextHighlight = computed(() =>
+  book.value ? supportsAnnotationHighlight(book.value.format) : false,
+)
+
+const bookBookmarks = computed(() => annotationsStore.getBookmarksForBook(bookId.value))
+
+const bookNotes = computed(() =>
+  annotationsStore.notes.filter((item) => item.bookId === bookId.value),
+)
+
+const bookHighlights = computed(() =>
+  annotationsStore.highlightOnly.filter((item) => item.bookId === bookId.value),
+)
+
+const selectionHasAnnotation = computed(() => {
+  const selection = pendingSelection.value
+  if (!selection) return false
+  return Boolean(
+    annotationsStore.findKookitAnnotation(
+      bookId.value,
+      selection.range,
+      selection.quote,
+    ),
   )
+})
+
+const readerStyle = computed(() => ({
+  backgroundColor: readerSurfaceColor.value,
+}))
+
+async function syncProgressToServer(percent: number) {
+  if (!book.value || percent <= 0) return
+  const nextProgress = Math.min(100, Math.max(book.value.progress, percent))
   if (Math.abs(nextProgress - book.value.progress) >= 0.01) {
     await booksStore.updateProgress(bookId.value, Number(nextProgress.toFixed(2)))
   }
 }
 
 const goBack = () => {
-  router.push('/')
+  exitReader(router, route)
+}
+
+function hideSelectionToolbar() {
+  selectionToolbar.value.visible = false
+  pendingSelection.value = null
+  readerHostRef.value?.clearTextSelection()
+}
+
+function onTextSelection(payload: TextSelectionPayload | null) {
+  if (!supportsTextHighlight.value || !payload) {
+    hideSelectionToolbar()
+    return
+  }
+  pendingSelection.value = payload
+  selectionToolbar.value = {
+    visible: true,
+    x: payload.x,
+    y: payload.y,
+  }
+}
+
+async function resolveSelectionRange(): Promise<string> {
+  const selection = pendingSelection.value
+  if (!selection) return ''
+  if (selection.range?.trim()) return selection.range
+
+  const range = await readerHostRef.value?.refreshPendingSelectionRange?.()
+  if (range?.trim()) {
+    pendingSelection.value = { ...selection, range }
+    return range
+  }
+  return ''
+}
+
+async function onHighlightColor(color: HighlightColor) {
+  const selection = pendingSelection.value
+  if (!selection) return
+
+  const range = await resolveSelectionRange()
+  if (!range.trim()) {
+    ElMessage.warning('未能获取选区位置，请重新划词后再试')
+    return
+  }
+
+  const result = await annotationsStore.toggleKookitHighlight(bookId.value, {
+    range,
+    spreadIndex: selection.spreadIndex,
+    chapterDocIndex: selection.chapterDocIndex,
+    quote: selection.quote,
+    chapter: selection.chapter,
+    color,
+  })
+
+  await readerHostRef.value?.applyStoredHighlights()
+  hideSelectionToolbar()
+
+  if (result === 'added') {
+    ElMessage.success('已添加高亮')
+  } else if (result === 'removed') {
+    ElMessage.success('已取消高亮')
+  } else {
+    ElMessage.success('已更新高亮')
+  }
+}
+
+function openNoteDialog() {
+  if (!pendingSelection.value) return
+  const selection = pendingSelection.value
+  const existing = annotationsStore.findKookitAnnotation(
+    bookId.value,
+    selection.range,
+    selection.quote,
+  )
+
+  noteQuote.value = selection.quote
+  noteInitial.value = existing?.note?.trim() ?? ''
+  noteColor.value = existing?.color ?? 'green'
+  editingNoteId.value = existing?.note?.trim() ? existing.id : undefined
+  showNoteDialog.value = true
+  selectionToolbar.value.visible = false
+}
+
+async function onNoteConfirm(payload: {
+  note: string
+  color: HighlightColor
+  editingId?: string
+}) {
+  const selection = pendingSelection.value
+  if (!selection) return
+
+  const range = await resolveSelectionRange()
+  if (!range.trim()) {
+    ElMessage.warning('未能获取选区位置，请重新划词后再试')
+    return
+  }
+
+  if (payload.editingId) {
+    await annotationsStore.updateNote(payload.editingId, payload.note, payload.color)
+  } else {
+    await annotationsStore.addKookitNote(bookId.value, {
+      range,
+      spreadIndex: selection.spreadIndex,
+      chapterDocIndex: selection.chapterDocIndex,
+      quote: selection.quote,
+      chapter: selection.chapter,
+      color: payload.color,
+      note: payload.note,
+    })
+  }
+
+  await readerHostRef.value?.applyStoredHighlights()
+  hideSelectionToolbar()
+  showNoteDialog.value = false
+  ElMessage.success('笔记已保存')
+}
+
+async function onSelectionDelete() {
+  const selection = pendingSelection.value
+  if (!selection) return
+
+  const existing = annotationsStore.findKookitAnnotation(
+    bookId.value,
+    selection.range,
+    selection.quote,
+  )
+  if (!existing) return
+
+  const hadNote = Boolean(existing.note?.trim())
+  await annotationsStore.removeHighlight(existing.id)
+  await readerHostRef.value?.applyStoredHighlights()
+  hideSelectionToolbar()
+  ElMessage.success(hadNote ? '笔记已删除' : '已删除高亮')
+}
+
+async function onNoteDelete(id: string) {
+  await annotationsStore.removeHighlight(id)
+  await readerHostRef.value?.applyStoredHighlights()
+  hideSelectionToolbar()
+  showNoteDialog.value = false
+  editingNoteId.value = undefined
+  ElMessage.success('笔记已删除')
 }
 
 const prevSpread = () => {
-  if (currentSpread.value > 0) currentSpread.value--
-  clearSelection()
+  hideSelectionToolbar()
+  void readerHostRef.value?.prev().then(() => {
+    syncActiveSpreadIndex()
+    syncActiveChapterIndex()
+  })
 }
 
 const nextSpread = () => {
-  if (currentSpread.value < totalSpreads.value - 1) currentSpread.value++
-  clearSelection()
+  hideSelectionToolbar()
+  void readerHostRef.value?.next().then(() => {
+    syncActiveSpreadIndex()
+    syncActiveChapterIndex()
+  })
 }
 
 const toggleBookmark = async () => {
+  syncActiveSpreadIndex()
+  const spreadIndex = currentSpreadIndex.value
   const wasBookmarked = isBookmarked.value
-  await annotationsStore.toggleBookmark(bookId.value, currentSpread.value)
+  await annotationsStore.toggleBookmark(bookId.value, spreadIndex, chapterTitle.value)
   ElMessage.success(wasBookmarked ? '已移除书签' : '已添加书签')
+}
+
+function syncActiveSpreadIndex() {
+  activeSpreadIndex.value = readerHostRef.value?.getCurrentSpreadIndex() ?? activeSpreadIndex.value
+}
+
+function syncActiveChapterIndex() {
+  activeChapterIndex.value = readerHostRef.value?.getCurrentChapterIndex() ?? activeChapterIndex.value
 }
 
 const toggleAi = () => {
   showAiPanel.value = !showAiPanel.value
-  clearSelection()
 }
 
-const clearSelection = () => {
-  showToolbar.value = false
-  pendingSelection.value = null
-  window.getSelection()?.removeAllRanges()
-}
-
-const onTextSelect = (payload: {
-  blockId: string
-  text: string
-  start: number
-  end: number
-  rect: DOMRect
-}) => {
-  pendingSelection.value = payload
-  toolbarPos.value = {
-    x: payload.rect.left + payload.rect.width / 2,
-    y: payload.rect.top,
+const toggleMenu = () => {
+  const next = !showMenuPanel.value
+  showMenuPanel.value = next
+  if (next) {
+    refreshNavData()
   }
-  showToolbar.value = true
 }
 
-const applyHighlight = async (color: HighlightColor) => {
-  if (!pendingSelection.value) return
-  const { blockId, start, end, text } = pendingSelection.value
-  const result = await annotationsStore.togglePlainHighlight(
-    bookId.value,
-    blockId,
-    currentSpread.value,
-    start,
-    end,
-    color,
-    text,
-    getChapterByBlockId(blockId, spreads.value),
-  )
-  const messages = {
-    added: '已添加高亮',
-    removed: '已取消高亮',
-    updated: '已更换高亮颜色',
+function refreshNavData() {
+  navChapters.value = readerHostRef.value?.getChapterList() ?? []
+  activeChapterIndex.value = readerHostRef.value?.getCurrentChapterIndex() ?? 0
+}
+
+async function onNavigateChapter(index: number) {
+  hideSelectionToolbar()
+  await readerHostRef.value?.goToSpreadIndex(index)
+  syncActiveSpreadIndex()
+  syncActiveChapterIndex()
+  showMenuPanel.value = false
+}
+
+const onReaderReady = async () => {
+  contentLoading.value = false
+  loadError.value = null
+  refreshNavData()
+  syncActiveSpreadIndex()
+  syncActiveChapterIndex()
+
+  const at = route.query.at
+  if (typeof at === 'string' && at.trim()) {
+    const spreadIndex = Number(at)
+    if (Number.isFinite(spreadIndex)) {
+      await readerHostRef.value?.goToSpreadIndex(spreadIndex)
+      syncActiveSpreadIndex()
+      syncActiveChapterIndex()
+      await readerHostRef.value?.applyStoredHighlights()
+    }
   }
-  ElMessage.success(messages[result])
-  clearSelection()
 }
 
-const openNoteDialog = () => {
-  if (!pendingSelection.value) return
-  showNoteDialog.value = true
-  showToolbar.value = false
+const onReaderError = (message: string) => {
+  contentLoading.value = false
+  loadError.value = message
+  ElMessage.error(message)
 }
 
-const confirmNote = async (payload: { note: string; color: HighlightColor }) => {
-  if (!pendingSelection.value) return
-  const { blockId, start, end, text } = pendingSelection.value
-  await annotationsStore.addHighlight(
-    bookId.value,
-    blockId,
-    currentSpread.value,
-    start,
-    end,
-    payload.color,
-    text,
-    getChapterByBlockId(blockId, spreads.value),
-    payload.note,
-  )
-  ElMessage.success('笔记已保存')
-  pendingSelection.value = null
-  window.getSelection()?.removeAllRanges()
+const onProgress = (percent: number) => {
+  progressPercent.value = percent
+  syncActiveChapterIndex()
+  void syncProgressToServer(percent)
 }
 
-const onDocumentClick = (e: MouseEvent) => {
-  const target = e.target as HTMLElement
-  if (
-    target.closest('.selection-toolbar') ||
-    target.closest('.reader-note-dialog') ||
-    target.closest('.reader-ai-panel')
-  ) {
+const onSpreadIndex = (index: number) => {
+  activeSpreadIndex.value = index
+}
+
+const onChapter = (title: string) => {
+  chapterTitle.value = title
+  syncActiveChapterIndex()
+}
+
+async function onSettingsApply(reload: boolean) {
+  readerSurfaceColor.value = configService.getReaderConfig('backgroundColor') || '#f7f3eb'
+  if (reload) {
+    contentLoading.value = true
+    await readerHostRef.value?.reloadBook()
+    refreshNavData()
     return
   }
-  if (!target.closest('.reader-block')) {
-    clearSelection()
-  }
+  readerHostRef.value?.applyReaderStyles()
 }
 
-watch(currentSpread, () => {
-  void syncProgressFromSpread()
-})
+function closeMenuPanel() {
+  showMenuPanel.value = false
+}
 
 watch(bookId, () => {
-  currentSpread.value = 0
-  void loadContent()
+  contentLoading.value = true
+  loadError.value = null
+  progressPercent.value = 0
+  chapterTitle.value = ''
+  navChapters.value = []
+  activeChapterIndex.value = 0
+  activeSpreadIndex.value = 0
+  hideSelectionToolbar()
+  showNoteDialog.value = false
+  showMenuPanel.value = false
 })
 
 onMounted(() => {
   if (bookId.value) {
     void booksStore.touchLastRead(bookId.value)
-    void loadContent()
   }
-  document.addEventListener('click', onDocumentClick)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', onDocumentClick)
 })
 </script>
 
 <template>
-  <div v-if="book && !contentLoading && current" class="reader">
+  <div v-if="book && !loadError" class="reader" :style="readerStyle">
     <header class="reader-header">
-      <div class="reader-header__zone reader-header__zone--left">
+      <div class="reader-header__primary">
         <span class="reader-progress">{{ progress }}</span>
         <button
           type="button"
@@ -221,10 +391,24 @@ onUnmounted(() => {
         >
           <ReaderBookmarkIcon :active="isBookmarked" />
         </button>
-        <span class="reader-chapter">{{ current.chapter }}</span>
+        <h1 class="reader-title" :title="book.title">{{ book.title }}</h1>
       </div>
-      <div class="reader-header__zone reader-header__zone--right">
-        <span class="reader-title">{{ book.title }}{{ book.author }}</span>
+
+      <div class="reader-header__meta">
+        <span class="reader-format">{{ book.format }}</span>
+        <span class="reader-chapter" :title="chapterTitle">{{ chapterTitle || '—' }}</span>
+      </div>
+
+      <div class="reader-header__actions">
+        <button
+          type="button"
+          class="reader-menu-btn"
+          :class="{ 'is-active': showMenuPanel }"
+          aria-label="阅读菜单"
+          @click="toggleMenu"
+        >
+          <el-icon :size="20"><Menu /></el-icon>
+        </button>
         <el-button
           :icon="ArrowRight"
           text
@@ -235,29 +419,43 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <main class="reader-pages">
-      <section class="reader-page reader-page--left">
-        <ReaderPageContent
-          :book-id="bookId"
-          :blocks="current.left.blocks"
-          @select="onTextSelect"
-        />
-        <span class="reader-page-num">第 {{ current.left.page }} 页</span>
-      </section>
-
-      <div class="reader-spine" />
-
-      <section class="reader-page reader-page--right">
-        <ReaderPageContent
-          :book-id="bookId"
-          :blocks="current.right.blocks"
-          @select="onTextSelect"
-        />
-        <span class="reader-page-num">第 {{ current.right.page }} 页</span>
-      </section>
+    <main class="reader-body" :class="{ 'reader-body--pdf': isPdfBook }">
+      <KookitReaderHost
+        ref="readerHostRef"
+        :book-id="bookId"
+        :book="book"
+        @ready="onReaderReady"
+        @error="onReaderError"
+        @progress="onProgress"
+        @spread-index="onSpreadIndex"
+        @text-selection="onTextSelection"
+        @chapter="onChapter"
+      />
     </main>
 
-    <footer class="reader-footer">
+    <ReaderSelectionToolbar
+      v-if="supportsTextHighlight"
+      :visible="selectionToolbar.visible"
+      :x="selectionToolbar.x"
+      :y="selectionToolbar.y"
+      :show-delete="selectionHasAnnotation"
+      @highlight="onHighlightColor"
+      @note="openNoteDialog"
+      @delete="onSelectionDelete"
+    />
+
+    <ReaderNoteDialog
+      v-if="supportsTextHighlight"
+      v-model:visible="showNoteDialog"
+      :quote="noteQuote"
+      :initial-note="noteInitial"
+      :initial-color="noteColor"
+      :editing-id="editingNoteId"
+      @confirm="onNoteConfirm"
+      @delete="onNoteDelete"
+    />
+
+    <footer v-if="!isPdfBook" class="reader-footer">
       <el-button class="reader-nav-btn" :icon="ArrowLeft" circle @click="prevSpread" />
       <el-button class="reader-nav-btn reader-nav-btn--next" :icon="ArrowRight" circle @click="nextSpread" />
     </footer>
@@ -271,67 +469,94 @@ onUnmounted(() => {
       AI
     </button>
 
-    <ReaderSelectionToolbar
-      :visible="showToolbar"
-      :x="toolbarPos.x"
-      :y="toolbarPos.y"
-      @highlight="applyHighlight"
-      @note="openNoteDialog"
-      @close="clearSelection"
-    />
-
-    <ReaderNoteDialog
-      v-model:visible="showNoteDialog"
-      :quote="pendingSelection?.text ?? ''"
-      @confirm="confirmNote"
-    />
-
     <ReaderAiPanel v-model:visible="showAiPanel" :book-id="bookId" />
+
+    <ReaderNavPanel
+      v-model:visible="showMenuPanel"
+      :book="book"
+      :chapters="navChapters"
+      :active-chapter-index="activeChapterIndex"
+      :bookmarks="bookBookmarks"
+      :notes="bookNotes"
+      :highlights="bookHighlights"
+      :progress-percent="progressPercent"
+      @navigate-chapter="onNavigateChapter"
+    />
+
+    <ReaderSettingsPanel
+      v-model:visible="showMenuPanel"
+      :format="book.format"
+      @apply="onSettingsApply"
+    />
+
+    <div
+      v-if="showMenuPanel"
+      class="reader-settings-backdrop"
+      aria-hidden="true"
+      @click="closeMenuPanel"
+    />
+
+    <div v-if="contentLoading" class="reader-overlay">
+      <p>正在加载阅读内容…</p>
+    </div>
   </div>
 
-  <div v-else-if="contentLoading" class="reader-not-found">
+  <div v-else-if="contentLoading && book" class="reader-not-found">
     <p>正在加载阅读内容…</p>
+  </div>
+
+  <div v-else-if="loadError && book" class="reader-not-found">
+    <p>{{ loadError }}</p>
+    <el-button type="primary" @click="goBack">返回</el-button>
   </div>
 
   <div v-else class="reader-not-found">
     <p>未找到该书籍</p>
-    <el-button type="primary" @click="goBack">返回首页</el-button>
+    <el-button type="primary" @click="goBack">返回</el-button>
   </div>
 </template>
 
 <style scoped>
 .reader {
   min-height: 100vh;
-  background: #f7f3eb;
   display: flex;
   flex-direction: column;
   position: relative;
+  transition: background-color 0.2s ease;
 }
 
 .reader-header {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
   align-items: center;
-  padding: 12px 0;
+  gap: 16px;
+  padding: 12px 24px;
   border-bottom: 1px solid #e0d8cc;
-  background: #f7f3eb;
+  background: inherit;
 }
 
-.reader-header__zone {
+.reader-header__primary,
+.reader-header__meta,
+.reader-header__actions {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 32px;
+  min-width: 0;
 }
 
-.reader-header__zone--right {
+.reader-header__meta {
+  justify-content: center;
+}
+
+.reader-header__actions {
   justify-content: flex-end;
 }
 
 .reader-progress {
   font-size: 13px;
   color: var(--sanko-text-secondary);
-  min-width: 48px;
+  min-width: 52px;
+  flex-shrink: 0;
 }
 
 .reader-bookmark-btn {
@@ -343,6 +568,7 @@ onUnmounted(() => {
   padding: 2px;
   cursor: pointer;
   transition: transform 0.15s;
+  flex-shrink: 0;
 }
 
 .reader-bookmark-btn:hover {
@@ -351,20 +577,64 @@ onUnmounted(() => {
 
 .reader-bookmark-btn.is-active {
   transform: none;
+  color: var(--sanko-green);
+}
+
+.reader-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sanko-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-format {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sanko-green);
+  background: rgba(90, 122, 106, 0.1);
 }
 
 .reader-chapter {
   flex: 1;
+  min-width: 0;
   text-align: center;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--sanko-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.reader-title {
-  flex: 1;
-  text-align: center;
-  font-size: 14px;
-  color: var(--sanko-text);
+.reader-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--sanko-text-secondary);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.reader-menu-btn:hover,
+.reader-menu-btn.is-active {
+  color: var(--sanko-green);
+  border-color: #d8e0d8;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .reader-exit-btn {
@@ -373,44 +643,18 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.reader-pages {
+.reader-body {
   flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1px 1fr;
   max-width: 1100px;
   width: 100%;
   margin: 0 auto;
   padding: 32px 24px 100px;
-}
-
-.reader-spine {
-  background: #e0d8cc;
-}
-
-.reader-page {
-  padding: 24px 32px 56px;
-  min-height: 520px;
-  position: relative;
-  background: #faf8f4;
   display: flex;
   flex-direction: column;
 }
 
-.reader-page--left {
-  border-radius: 4px 0 0 4px;
-}
-
-.reader-page--right {
-  border-radius: 0 4px 4px 0;
-}
-
-.reader-page-num {
-  position: absolute;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 13px;
-  color: var(--sanko-text-secondary);
+.reader-body--pdf {
+  padding-bottom: 32px;
 }
 
 .reader-footer {
@@ -463,6 +707,26 @@ onUnmounted(() => {
   border-color: var(--sanko-green);
 }
 
+.reader-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.reader-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(247, 243, 235, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  pointer-events: none;
+  font-size: 14px;
+  color: var(--sanko-text-secondary);
+}
+
 .reader-not-found {
   min-height: 100vh;
   display: flex;
@@ -470,5 +734,17 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .reader-header {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+  }
+
+  .reader-header__meta {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
 }
 </style>

@@ -1,6 +1,6 @@
 import { USE_MOCK } from '@/api/config'
 import { request } from '@/api/request'
-import type { ReaderHighlight, ReaderSpread } from '@/types/reader'
+import type { ReaderBookmark, ReaderHighlight, ReaderSpread } from '@/types/reader'
 import { mockDelay, mockGetReaderContent, mockState } from '@/api/mock/state'
 
 export async function getBookContent(bookId: string): Promise<ReaderSpread[]> {
@@ -48,7 +48,20 @@ export async function createAnnotation(
 
 export async function updateAnnotation(
   id: string,
-  payload: Partial<Pick<ReaderHighlight, 'color' | 'note' | 'quote' | 'start' | 'end' | 'spreadIndex' | 'chapter'>>,
+  payload: Partial<
+    Pick<
+      ReaderHighlight,
+      | 'color'
+      | 'note'
+      | 'quote'
+      | 'start'
+      | 'end'
+      | 'spreadIndex'
+      | 'chapter'
+      | 'range'
+      | 'chapterDocIndex'
+    >
+  >,
 ): Promise<ReaderHighlight> {
   if (USE_MOCK) {
     const item = mockState.highlights.find((h) => h.id === id)
@@ -67,7 +80,7 @@ export async function deleteAnnotation(id: string): Promise<void> {
   await request<void>(`/api/annotations/${id}`, { method: 'DELETE' })
 }
 
-export async function listBookmarks(bookId?: string): Promise<{ id: string; bookId: string; spreadIndex: number }[]> {
+export async function listBookmarks(bookId?: string): Promise<ReaderBookmark[]> {
   if (USE_MOCK) {
     const list = bookId
       ? mockState.bookmarks.filter((b) => b.bookId === bookId)
@@ -75,23 +88,28 @@ export async function listBookmarks(bookId?: string): Promise<{ id: string; book
     return mockDelay(list)
   }
   const query = bookId ? `?bookId=${encodeURIComponent(bookId)}` : ''
-  return request<{ id: string; bookId: string; spreadIndex: number }[]>(`/api/bookmarks${query}`)
+  return request<ReaderBookmark[]>(`/api/bookmarks${query}`)
 }
 
-export async function createBookmark(bookId: string, spreadIndex: number): Promise<{ id: string; bookId: string; spreadIndex: number }> {
+export async function createBookmark(
+  bookId: string,
+  spreadIndex: number,
+  chapter?: string,
+): Promise<ReaderBookmark> {
   if (USE_MOCK) {
-    mockState.bookmarks = mockState.bookmarks.filter((b) => b.bookId !== bookId)
-    const bookmark = {
+    const bookmark: ReaderBookmark = {
       id: `bm-${Date.now()}`,
       bookId,
       spreadIndex,
+      chapter,
+      createdAt: new Date().toISOString(),
     }
     mockState.bookmarks.push(bookmark)
     return mockDelay(bookmark)
   }
-  return request<{ id: string; bookId: string; spreadIndex: number }>('/api/bookmarks', {
+  return request<ReaderBookmark>('/api/bookmarks', {
     method: 'POST',
-    body: { bookId, spreadIndex },
+    body: { bookId, spreadIndex, chapter },
   })
 }
 
@@ -103,12 +121,8 @@ export async function deleteBookmark(id: string): Promise<void> {
   await request<void>(`/api/bookmarks/${id}`, { method: 'DELETE' })
 }
 
-export function syncMockAnnotations(highlights: ReaderHighlight[], bookmarks: Record<string, number>) {
+export function syncMockAnnotations(highlights: ReaderHighlight[], bookmarks: ReaderBookmark[]) {
   if (!USE_MOCK) return
   mockState.highlights = [...highlights]
-  mockState.bookmarks = Object.entries(bookmarks).map(([bookId, spreadIndex], i) => ({
-    id: `bm-sync-${i}`,
-    bookId,
-    spreadIndex,
-  }))
+  mockState.bookmarks = [...bookmarks]
 }
