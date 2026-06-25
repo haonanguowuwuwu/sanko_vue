@@ -25,9 +25,16 @@ export interface ChatMessageDto {
   content: string
 }
 
+/** 聊天请求来源页面 */
+export type ChatSource = 'home' | 'book' | 'reader'
+
 export interface ChatRequest {
   message: string
   history?: ChatMessageDto[]
+  /** 标明从哪个页面发起 */
+  source: ChatSource
+  /** 从书籍相关页面发起时携带 */
+  bookId?: string
 }
 
 export interface ChatResponse {

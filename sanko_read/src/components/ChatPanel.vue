@@ -37,7 +37,7 @@ const handleSend = async () => {
     const history: ChatMessageDto[] = messages.value
       .slice(0, -1)
       .map((m) => ({ role: m.role, content: m.content }))
-    const response = await sendChatMessage({ message: text, history })
+    const response = await sendChatMessage({ message: text, history, source: 'home' })
     messages.value.push({ role: 'assistant', content: response.reply })
     scrollToBottom()
   } catch (error) {

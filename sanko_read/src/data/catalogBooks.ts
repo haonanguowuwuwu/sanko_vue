@@ -1,46 +1,10 @@
 import type { Book } from '@/types/book'
 import { formatAddedDate } from '@/types/book'
+import type { CatalogBook, CatalogBookEdition, RankSection } from '@/types/catalog'
 
-export interface CatalogComment {
-  id: string
-  user: string
-  content: string
-  date: string
-  likes: number
-  replyCount: number
-  replies?: CatalogComment[]
-}
+export type { CatalogBook, CatalogBookEdition, CatalogComment, RankSection } from '@/types/catalog'
 
-export interface CatalogBook {
-  id: string
-  title: string
-  author: string
-  coverColor: string
-  coverTitle: string
-  description?: string
-  category?: string
-  updateStatus?: string
-  latestChapter?: string
-  tags?: string[]
-  synopsis?: string
-  comments?: CatalogComment[]
-}
-
-export const featuredBooks: CatalogBook[] = [
-  { id: 'f1', title: '书籍1', author: '作者1', coverColor: '#c45c26', coverTitle: '书籍1' },
-  { id: 'f2', title: '书籍2', author: '作者2', coverColor: '#1a5fb4', coverTitle: '书籍2' },
-  { id: 'f3', title: '书籍3', author: '作者3', coverColor: '#2d8659', coverTitle: '书籍3' },
-  { id: 'f4', title: '书籍4', author: '作者4', coverColor: '#6b3fa0', coverTitle: '书籍4' },
-  { id: 'f5', title: '书籍5', author: '作者5', coverColor: '#b83232', coverTitle: '书籍5' },
-]
-
-export interface RankSection {
-  title: string
-  highlight: CatalogBook
-  items: CatalogBook[]
-}
-
-const santiComments: CatalogComment[] = [
+const santiComments = [
   {
     id: 'c1',
     user: '用户1',
@@ -117,26 +81,44 @@ const santiComments: CatalogComment[] = [
     likes: 18,
     replyCount: 0,
   },
+] satisfies CatalogBook['comments']
+
+const santiEditions: CatalogBookEdition[] = [
+  { id: 'n0-epub', format: 'EPUB', fileSize: '1.40 MB' },
+  { id: 'n0-pdf', format: 'PDF', fileSize: '15.10 MB' },
+  { id: 'n0-mobi', format: 'MOBI', fileSize: '602 KB' },
+  { id: 'n0-azw3', format: 'AZW3', fileSize: '1.20 MB' },
+  { id: 'n0-txt', format: 'TXT', fileSize: '890 KB' },
+]
+
+export const santiBook: CatalogBook = {
+  id: 'n0',
+  title: '三体',
+  author: '刘慈欣',
+  coverColor: '#f0c419',
+  coverTitle: '三体',
+  description: '地球文明向宇宙发出第一声啼鸣，取得了探寻外星文明的突破性进展…',
+  category: '科幻 · 长篇',
+  purchaseType: 'free',
+  tags: ['科幻', '硬核', '人文思考'],
+  synopsis:
+    '展现了残酷的宇宙社会结构，以及人类在面对未知文明时的挣扎与抉择。地球文明向宇宙发出第一声啼鸣，取得了探寻外星文明的突破性进展。三体人利用超技术锁死了地球的基础科学，庞大的宇宙舰队杀向地球…',
+  comments: santiComments,
+  editions: santiEditions,
+}
+
+export const featuredBooks: CatalogBook[] = [
+  santiBook,
+  { id: 'f2', title: '书籍2', author: '作者2', coverColor: '#1a5fb4', coverTitle: '书籍2' },
+  { id: 'f3', title: '书籍3', author: '作者3', coverColor: '#2d8659', coverTitle: '书籍3' },
+  { id: 'f4', title: '书籍4', author: '作者4', coverColor: '#6b3fa0', coverTitle: '书籍4' },
+  { id: 'f5', title: '书籍5', author: '作者5', coverColor: '#b83232', coverTitle: '书籍5' },
 ]
 
 export const rankSections: RankSection[] = [
   {
     title: '新书榜',
-    highlight: {
-      id: 'n0',
-      title: '三体',
-      author: '刘慈欣',
-      coverColor: '#f0c419',
-      coverTitle: '三体',
-      description: '地球文明向宇宙发出第一声啼鸣，取得了探寻外星文明的突破性进展…',
-      category: '科幻 · 长篇',
-      updateStatus: '已完结',
-      latestChapter: '死神永生',
-      tags: ['科幻', '硬核', '人文思考'],
-      synopsis:
-        '展现了残酷的宇宙社会结构，以及人类在面对未知文明时的挣扎与抉择。地球文明向宇宙发出第一声啼鸣，取得了探寻外星文明的突破性进展。三体人利用超技术锁死了地球的基础科学，庞大的宇宙舰队杀向地球…',
-      comments: santiComments,
-    },
+    highlight: santiBook,
     items: [
       { id: 'n1', title: '诡秘之主', author: '爱潜水的乌贼', coverColor: '#2c3e50', coverTitle: '诡秘' },
       { id: 'n2', title: '大奉打更人', author: '卖报小郎君', coverColor: '#8b4513', coverTitle: '打更' },
@@ -154,8 +136,7 @@ export const rankSections: RankSection[] = [
       coverTitle: '斗破',
       description: '这里是属于斗气的世界，没有花俏的魔法，有的，仅仅是繁衍到巅峰的斗气。',
       category: '玄幻 · 长篇',
-      updateStatus: '已完结',
-      latestChapter: '大结局',
+      purchaseType: 'paid',
       tags: ['玄幻', '热血', '升级'],
     },
     items: [
@@ -175,8 +156,7 @@ export const rankSections: RankSection[] = [
       coverTitle: '解忧',
       description: '僻静的街道旁有一家杂货店，只要写下烦恼投进店前门卷帘门的投信口…',
       category: '文学 · 中篇',
-      updateStatus: '已完结',
-      latestChapter: '最后一夜',
+      purchaseType: 'free',
       tags: ['治愈', '温情', '推理'],
     },
     items: [
@@ -208,7 +188,11 @@ export function getAllCatalogBooks(): CatalogBook[] {
   return Array.from(catalogBookMap.values())
 }
 
-export function catalogBookToLibraryBook(catalog: CatalogBook): Book {
+export function catalogBookToLibraryBook(
+  catalog: CatalogBook,
+  edition?: CatalogBookEdition,
+): Book {
+  const selected = edition ?? catalog.editions?.[0]
   return {
     id: catalog.id,
     title: catalog.title,
@@ -216,9 +200,18 @@ export function catalogBookToLibraryBook(catalog: CatalogBook): Book {
     progress: 0,
     coverColor: catalog.coverColor,
     coverTitle: catalog.coverTitle,
-    fileSize: '—',
-    format: 'EPUB',
+    fileSize: selected?.fileSize ?? '—',
+    format: selected?.format ?? '—',
     addedAt: formatAddedDate(),
     category: catalog.category?.split(' · ')[0] ?? '未分类',
   }
+}
+
+export function formatEditionLabel(edition: CatalogBookEdition): string {
+  return `${edition.format}, ${edition.fileSize}`
+}
+
+export const purchaseTypeLabel: Record<NonNullable<CatalogBook['purchaseType']>, string> = {
+  free: '无需积分购买',
+  paid: '需要积分购买',
 }

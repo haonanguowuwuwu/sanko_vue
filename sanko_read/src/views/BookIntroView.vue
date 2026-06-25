@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Reading } from '@element-plus/icons-vue'
@@ -8,7 +8,13 @@ import BookCommentSection from '@/components/book/BookCommentSection.vue'
 import AddToBookshelfDialog from '@/components/AddToBookshelfDialog.vue'
 import { useBooksStore } from '@/stores/books'
 import { useReaderAnnotationsStore } from '@/stores/readerAnnotations'
-import { catalogBookToLibraryBook, getCatalogBook } from '@/data/catalogBooks'
+import { fetchCatalogBook, downloadCatalogEdition } from '@/api/catalog'
+import type { CatalogBook, CatalogBookEdition } from '@/types/catalog'
+import {
+  catalogBookToLibraryBook,
+  formatEditionLabel,
+  purchaseTypeLabel,
+} from '@/data/catalogBooks'
 import { seedDemoAnnotationsIfNeeded } from '@/api/mock/demoAnnotations'
 import { useRequireLogin } from '@/composables/useRequireLogin'
 
@@ -18,7 +24,41 @@ const booksStore = useBooksStore()
 const annotationsStore = useReaderAnnotationsStore()
 const { isLoggedIn, requireLogin } = useRequireLogin()
 
-const book = computed(() => getCatalogBook(route.params.id as string))
+const book = ref<CatalogBook | null>(null)
+const loading = ref(true)
+const selectedEditionId = ref<string>('')
+
+const selectedEdition = computed((): CatalogBookEdition | undefined => {
+  if (!book.value?.editions?.length) return undefined
+  return (
+    book.value.editions.find((e) => e.id === selectedEditionId.value) ??
+    book.value.editions[0]
+  )
+})
+
+const purchaseLabel = computed(() => {
+  const type = book.value?.purchaseType
+  return type ? purchaseTypeLabel[type] : '—'
+})
+
+const loadBook = async (id: string) => {
+  loading.value = true
+  try {
+    const data = await fetchCatalogBook(id)
+    book.value = data
+    selectedEditionId.value = data?.editions?.[0]?.id ?? ''
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(
+  () => route.params.id as string,
+  (id) => {
+    if (id) void loadBook(id)
+  },
+  { immediate: true },
+)
 const liked = ref(false)
 const blocked = ref(false)
 const showAddToShelfDialog = ref(false)
@@ -39,15 +79,38 @@ const toggleBlock = () => {
 
 const startReading = () => {
   if (!book.value) return
+  if (!selectedEdition.value) {
+    ElMessage.warning('请先选择书籍版本')
+    return
+  }
   const readerPath = `/read/${book.value.id}`
   requireLogin(async () => {
-    const saved = await booksStore.ensureBookInLibrary(catalogBookToLibraryBook(book.value!))
+    const saved = await booksStore.ensureBookInLibrary(
+      catalogBookToLibraryBook(book.value!, selectedEdition.value),
+    )
     const seeded = seedDemoAnnotationsIfNeeded(saved.id, saved.format)
     if (seeded) {
       await annotationsStore.fetchAll()
     }
     void router.push(readerPath)
   }, '请先登录后再阅读', readerPath)
+}
+
+const downloadEdition = () => {
+  if (!book.value || !selectedEdition.value) {
+    ElMessage.warning('请先选择书籍版本')
+    return
+  }
+  const edition = selectedEdition.value
+  requireLogin(async () => {
+    try {
+      await downloadCatalogEdition(book.value!.id, edition.id)
+      ElMessage.success(`开始下载 ${edition.format} 版本（${edition.fileSize}）`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '下载失败'
+      ElMessage.error(message)
+    }
+  }, '请先登录后再下载')
 }
 
 const openAddToShelf = () => {
@@ -59,7 +122,9 @@ const openAddToShelf = () => {
 const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
   if (!book.value) return
   if (shelfCount > 0) {
-    const saved = await booksStore.ensureBookInLibrary(catalogBookToLibraryBook(book.value))
+    const saved = await booksStore.ensureBookInLibrary(
+      catalogBookToLibraryBook(book.value, selectedEdition.value),
+    )
     const seeded = seedDemoAnnotationsIfNeeded(saved.id, saved.format)
     if (seeded) {
       await annotationsStore.fetchAll()
@@ -72,7 +137,11 @@ const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
 </script>
 
 <template>
-  <div v-if="book" class="book-intro">
+  <div v-if="loading" class="book-intro book-intro--empty">
+    <p>加载中…</p>
+  </div>
+
+  <div v-else-if="book" class="book-intro">
     <header class="book-intro__toolbar">
       <button type="button" class="book-intro__back" aria-label="返回首页" @click="goBack">
         <el-icon :size="20"><ArrowLeft /></el-icon>
@@ -107,16 +176,16 @@ const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
           <dd>{{ book.author }}</dd>
         </div>
         <div class="book-intro__meta-row">
-          <dt>属性：</dt>
+          <dt>分类：</dt>
           <dd>{{ book.category ?? '—' }}</dd>
         </div>
         <div class="book-intro__meta-row">
-          <dt>更新状态：</dt>
-          <dd>{{ book.updateStatus ?? '—' }}</dd>
+          <dt>属性：</dt>
+          <dd>{{ purchaseLabel }}</dd>
         </div>
-        <div class="book-intro__meta-row">
-          <dt>最新章节：</dt>
-          <dd>{{ book.latestChapter ?? '—' }}</dd>
+        <div v-if="selectedEdition" class="book-intro__meta-row">
+          <dt>文件：</dt>
+          <dd>{{ formatEditionLabel(selectedEdition) }}</dd>
         </div>
       </dl>
     </section>
@@ -131,6 +200,23 @@ const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
     </p>
 
     <div class="book-intro__actions">
+      <div v-if="book.editions?.length" class="book-intro__edition">
+        <label class="book-intro__edition-label" for="book-edition-select">选择版本</label>
+        <el-select
+          id="book-edition-select"
+          v-model="selectedEditionId"
+          class="book-intro__edition-select"
+          placeholder="选择格式"
+        >
+          <el-option
+            v-for="edition in book.editions"
+            :key="edition.id"
+            :label="formatEditionLabel(edition)"
+            :value="edition.id"
+          />
+        </el-select>
+      </div>
+
       <button type="button" class="book-intro__shelf" @click="openAddToShelf">
         <el-icon :size="18"><Reading /></el-icon>
         加入书架
@@ -144,7 +230,22 @@ const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
         <HeartIcon :size="18" :filled="liked" />
         喜欢
       </button>
-      <button type="button" class="book-intro__read" @click="startReading">开始阅读</button>
+      <button
+        type="button"
+        class="book-intro__download"
+        :disabled="!selectedEdition"
+        @click="downloadEdition"
+      >
+        下载
+      </button>
+      <button
+        type="button"
+        class="book-intro__read"
+        :disabled="!selectedEdition"
+        @click="startReading"
+      >
+        开始阅读
+      </button>
     </div>
 
     <BookCommentSection :initial-comments="book.comments" :interactive="isLoggedIn" />
@@ -313,8 +414,49 @@ const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px 16px;
   margin-bottom: 28px;
+}
+
+.book-intro__edition {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+}
+
+.book-intro__edition-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sanko-text);
+  white-space: nowrap;
+}
+
+.book-intro__edition-select {
+  width: 180px;
+}
+
+.book-intro__download {
+  padding: 10px 20px;
+  border: 1px solid var(--sanko-green);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--sanko-green);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.book-intro__download:hover:not(:disabled) {
+  background: rgba(0, 90, 43, 0.06);
+}
+
+.book-intro__download:disabled,
+.book-intro__read:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .book-intro__shelf {

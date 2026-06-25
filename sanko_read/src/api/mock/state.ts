@@ -248,7 +248,13 @@ export function mockCreateHighlight(
   return highlight
 }
 
-export function mockChatReply(message: string, _bookId?: string): string {
+export function mockChatReply(message: string, bookId?: string, source?: string): string {
+  if (source === 'home') {
+    return '（首页对话）我可以帮你找书、总结内容或讨论观点。有什么想了解的吗？'
+  }
+  if (bookId && (source === 'book' || source === 'reader')) {
+    return `（书籍 ${bookId} 上下文）这是一个很好的问题！建议结合本书内容来理解，而非孤立背诵。`
+  }
   if (message.includes('混凝土') && message.includes('意大利面')) {
     return '混凝土不应该和意大利面搅拌。'
   }

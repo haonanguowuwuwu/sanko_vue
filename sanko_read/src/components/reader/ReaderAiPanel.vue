@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
 import { Close } from '@element-plus/icons-vue'
-import { sendReaderAiMessage, sendChatMessage, type ChatMessageDto } from '@/api/chat'
+import { sendChatMessage, type ChatMessageDto } from '@/api/chat'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -57,9 +57,12 @@ const handleSend = async () => {
     const history: ChatMessageDto[] = messages.value
       .slice(0, -1)
       .map((m) => ({ role: m.role, content: m.content }))
-    const response = props.bookId
-      ? await sendReaderAiMessage(props.bookId, { message: text, history })
-      : await sendChatMessage({ message: text, history })
+    const response = await sendChatMessage({
+      message: text,
+      history,
+      source: 'reader',
+      bookId: props.bookId,
+    })
     messages.value.push({ role: 'assistant', content: response.reply })
     scrollToBottom()
   } catch (error) {
