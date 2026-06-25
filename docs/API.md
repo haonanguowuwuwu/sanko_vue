@@ -1,7 +1,8 @@
 # Sanko Read API 接口文档
 
 > 前端阅读应用 `sanko_read` 与后端的接口契约。  
-> 依据 `sanko_read/src/api/` 整理，供 Spring Boot + Knife4j 实现参考。
+> 依据 `sanko_read/src/api/` 整理，供 Spring Boot + Knife4j 实现参考。  
+> **完整需求（含书城、积分）见 [`BACKEND_API.md`](./BACKEND_API.md)。**
 
 ---
 
@@ -12,6 +13,7 @@
 | **后端** | 按本文档实现接口；实现后在 Knife4j `/doc.html` 维护在线文档 |
 | **前端** | 联调时设置 `VITE_USE_MOCK=false`、`VITE_API_BASE_URL=http://localhost:8080` |
 | **协作** | 可导入 [`openapi.yaml`](./openapi.yaml) 到 Apifox / Postman |
+| **后端完整需求** | [`BACKEND_API.md`](./BACKEND_API.md)（含积分、file-url、书城域） |
 
 **源码对照**
 
@@ -172,7 +174,42 @@ Authorization: Bearer <token>
 | 字段 | 说明 |
 |------|------|
 | `start` / `end` | 在 `block.text` 中的字符偏移，`start` 含、`end` 不含 |
-| `color` | `blue` \| `green` \| `gray` |
+| `color` | `blue` \| `green` \| `cyan` \| `yellow` \| `purple` \| `gray` |
+| `range` | kookit rangy 字符 range 的 JSON 字符串（可选） |
+| `chapterDocIndex` | 章节文档索引（可选） |
+
+### BookFileUrl
+
+```json
+{
+  "url": "https://storage.example.com/books/book-1.epub?sign=...",
+  "expiresAt": "2026-06-25T15:00:00.000Z",
+  "contentType": "application/epub+zip",
+  "contentLength": 2516582
+}
+```
+
+阅读器通过 `file-url` 下载 EPUB/PDF 二进制，由客户端 kookit 解析（非 `/content` 接口）。
+
+### PointsSummary / PointsOrder
+
+```json
+{ "balance": 12580, "totalEarned": 5260, "totalUsed": 4560 }
+```
+
+```json
+{
+  "id": "ORD20260625001",
+  "time": "2026-06-25 14:30:00",
+  "type": "recharge",
+  "change": 500,
+  "balance": 12580,
+  "description": "积分充值-支付宝",
+  "status": "completed"
+}
+```
+
+充值汇率：**1 元 = 10 积分**。
 
 ### BookmarkRecord
 
@@ -268,6 +305,16 @@ Authorization: Bearer <token>
 
 ---
 
+### 1.5 积分
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/profile/points/summary` | 积分总览 |
+| GET | `/api/profile/points/orders` | 订单列表（分页、筛选） |
+| POST | `/api/profile/points/recharge` | 充值 `{ amount, method }` |
+
+---
+
 ### 2. 图书
 
 | 方法 | 路径 | 说明 |
@@ -276,11 +323,17 @@ Authorization: Bearer <token>
 | GET | `/api/books/trash` | 回收站 |
 | GET | `/api/books/search?q={keyword}` | 搜索 |
 | GET | `/api/books/{id}` | 详情 |
+| POST | `/api/books` | 将书城书加入个人库 |
 | POST | `/api/books/import` | 导入（multipart） |
 | POST | `/api/books/{id}/trash` | 移入回收站 |
 | POST | `/api/books/{id}/restore` | 恢复 |
 | DELETE | `/api/books/{id}` | 删除 |
 | PATCH | `/api/books/{id}/progress` | 更新进度 |
+| GET | `/api/books/{id}/file-url` | 书籍文件临时下载地址 |
+
+**GET `/api/books/{id}/file-url`**
+
+响应 `data`：`BookFileUrl`。前端用 `url` 直接下载文件交给阅读器。
 
 **POST `/api/books/import`**
 
@@ -426,6 +479,19 @@ Authorization: Bearer <token>
 
 ---
 
+### 11. 书城（建议新增，详见 BACKEND_API.md）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/catalog/home` | 首页推荐与榜单 |
+| GET | `/api/catalog/books` | 分类筛选列表 |
+| GET | `/api/catalog/books/{id}` | 书城书籍详情 |
+| GET/POST | `/api/catalog/books/{id}/comments` | 评论列表 / 发表 |
+
+前端当前用 `catalogBooks.ts` 静态数据；完整接口见 [`BACKEND_API.md`](./BACKEND_API.md) 第 5 节。
+
+---
+
 ## 前端 Store 与 API 映射
 
 | 前端 Store / 组件 | 相关 API |
@@ -436,6 +502,7 @@ Authorization: Bearer <token>
 | `stores/readerAnnotations.ts` | `/api/annotations/*`、`/api/bookmarks/*` |
 | `stores/settings.ts` | `/api/settings` |
 | `AppBackupDialog.vue` | `/api/backup`、`/api/restore` |
+| `ProfilePointsView.vue` | `/api/profile/points/*` |
 | `ChatView.vue` | `/api/chat` |
 | `ReaderAiPanel.vue` | `/api/books/{id}/ai/chat` |
 
@@ -456,4 +523,5 @@ Authorization: Bearer <token>
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.1.0 | 2026-06-25 | 新增 BACKEND_API.md；补充积分、file-url、书城域；标注颜色与 range 字段 |
 | 1.0.0 | 2026-06-17 | 初版，依据前端 `src/api/` 整理 |

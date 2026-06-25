@@ -13,7 +13,10 @@ info:
     **前端环境变量**
     - `VITE_API_BASE_URL`：默认 `http://localhost:8080`
     - `VITE_USE_MOCK=false` 时走真实后端
-  version: 1.0.0
+
+    **完整需求文档**
+    - 详见 [`BACKEND_API.md`](./BACKEND_API.md)
+  version: 1.1.0
   contact:
     name: Sanko Read Frontend
 
@@ -32,6 +35,8 @@ tags:
   - name: 用户设置
   - name: 备份
   - name: AI聊天
+  - name: 积分
+  - name: 书城
 
 security:
   - BearerAuth: []
@@ -118,6 +123,28 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/Book'
+    post:
+      tags: [图书]
+      summary: 将书城书加入个人库
+      description: 用户从书城点「开始阅读」或「加入书架」时调用；bookId 应与书城书籍 ID 关联
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Book'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Book'
 
   /api/books/trash:
     get:
@@ -311,6 +338,30 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/Book'
+
+  /api/books/{id}/file-url:
+    get:
+      tags: [图书]
+      summary: 获取书籍文件临时下载地址
+      description: |
+        阅读器通过返回的 url 直接下载 EPUB/PDF 二进制，由客户端 kookit 解析。
+        与 `/content` 接口不同，此为真实阅读路径。
+      parameters:
+        - $ref: '#/components/parameters/BookId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BookFileUrl'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/books/{id}/content:
     get:
@@ -870,13 +921,407 @@ paths:
                       data:
                         $ref: '#/components/schemas/ChatResponse'
 
+  /api/profile/points/summary:
+    get:
+      tags: [积分]
+      summary: 积分总览
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PointsSummary'
+
+  /api/profile/points/orders:
+    get:
+      tags: [积分]
+      summary: 积分订单列表
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [all, recharge, earn, use]
+          description: 订单类型筛选
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: YYYY-MM-DD
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: YYYY-MM-DD
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PointsOrderPage'
+
+  /api/profile/points/recharge:
+    post:
+      tags: [积分]
+      summary: 发起积分充值
+      description: 充值汇率 1 元 = 10 积分
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RechargeRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RechargeResult'
+
+  /api/catalog/home:
+    get:
+      tags: [书城]
+      summary: 首页推荐与榜单
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/HomeCatalog'
+
+  /api/catalog/filters:
+    get:
+      tags: [书城]
+      summary: 分类筛选项配置
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CatalogFilters'
+
+  /api/catalog/books:
+    get:
+      tags: [书城]
+      summary: 书城书籍列表（分类筛选）
+      security: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: 连载状态，如 serial / finished
+        - name: attr
+          in: query
+          schema:
+            type: string
+          description: 属性，如 free / vip
+        - name: tags
+          in: query
+          schema:
+            type: string
+          description: 标签，可多选（逗号分隔）
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CatalogBookPage'
+
+  /api/catalog/books/{id}:
+    get:
+      tags: [书城]
+      summary: 书城书籍详情
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogBookId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CatalogBook'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/catalog/books/{id}/comments:
+    get:
+      tags: [书城]
+      summary: 书籍评论列表
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogBookId'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CatalogCommentPage'
+    post:
+      tags: [书城]
+      summary: 发表评论
+      parameters:
+        - $ref: '#/components/parameters/CatalogBookId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCatalogCommentRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CatalogComment'
+
+  /api/catalog/comments/{id}/replies:
+    post:
+      tags: [书城]
+      summary: 回复评论
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCatalogCommentRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CatalogComment'
+
+  /api/catalog/comments/{id}/like:
+    post:
+      tags: [书城]
+      summary: 点赞评论
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+    delete:
+      tags: [书城]
+      summary: 取消点赞
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/catalog/comments/{id}/report:
+    post:
+      tags: [书城]
+      summary: 举报评论
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCommentRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/catalog/books/{id}/block:
+    post:
+      tags: [书城]
+      summary: 屏蔽书籍
+      parameters:
+        - $ref: '#/components/parameters/CatalogBookId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+    delete:
+      tags: [书城]
+      summary: 取消屏蔽书籍
+      parameters:
+        - $ref: '#/components/parameters/CatalogBookId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: 'null'
+
+  /api/catalog/blocks:
+    get:
+      tags: [书城]
+      summary: 用户屏蔽书籍列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        description: 被屏蔽的书城 bookId 列表
+                        items:
+                          type: string
+
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: 登录后获得的 token，前端请求头 `Authorization: Bearer {token}`
+      description: "登录后获得的 token，前端请求头 Authorization: Bearer {token}"
 
   parameters:
     BookId:
@@ -897,6 +1342,20 @@ components:
       required: true
       schema:
         type: string
+    CatalogBookId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 书城书籍 ID
+    CommentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 评论 ID
 
   responses:
     Unauthorized:
@@ -1025,6 +1484,24 @@ components:
           type: boolean
           description: true 表示永久删除（通常用于回收站）
 
+    BookFileUrl:
+      type: object
+      required: [url, expiresAt]
+      properties:
+        url:
+          type: string
+          description: 书籍文件临时下载地址
+        expiresAt:
+          type: string
+          format: date-time
+          description: URL 过期时间
+        contentType:
+          type: string
+          example: application/epub+zip
+        contentLength:
+          type: integer
+          description: 文件字节数
+
     Bookshelf:
       type: object
       required: [id, name, bookIds]
@@ -1137,7 +1614,7 @@ components:
           description: 在 block.text 中的结束字符偏移（不含）
         color:
           type: string
-          enum: [blue, green, gray]
+          enum: [blue, green, cyan, yellow, purple, gray]
         quote:
           type: string
           description: 选中的原文
@@ -1146,6 +1623,12 @@ components:
         note:
           type: string
           description: 笔记内容（可选）
+        range:
+          type: string
+          description: kookit rangy 字符 range 的 JSON 字符串
+        chapterDocIndex:
+          type: integer
+          description: 章节文档索引（可选）
         createdAt:
           type: string
           format: date-time
@@ -1174,20 +1657,24 @@ components:
           type: integer
         color:
           type: string
-          enum: [blue, green, gray]
+          enum: [blue, green, cyan, yellow, purple, gray]
         quote:
           type: string
         chapter:
           type: string
         note:
           type: string
+        range:
+          type: string
+        chapterDocIndex:
+          type: integer
 
     UpdateAnnotationRequest:
       type: object
       properties:
         color:
           type: string
-          enum: [blue, green, gray]
+          enum: [blue, green, cyan, yellow, purple, gray]
         note:
           type: string
         quote:
@@ -1200,6 +1687,10 @@ components:
           type: integer
         chapter:
           type: string
+        range:
+          type: string
+        chapterDocIndex:
+          type: integer
 
     BookmarkRecord:
       type: object
@@ -1211,6 +1702,11 @@ components:
           type: string
         spreadIndex:
           type: integer
+        chapter:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
 
     CreateBookmarkRequest:
       type: object
@@ -1220,6 +1716,8 @@ components:
           type: string
         spreadIndex:
           type: integer
+        chapter:
+          type: string
 
     AppSettingsDto:
       type: object
@@ -1343,3 +1841,231 @@ components:
       properties:
         reply:
           type: string
+
+    PointsSummary:
+      type: object
+      required: [balance, totalEarned, totalUsed]
+      properties:
+        balance:
+          type: integer
+          description: 当前可用积分
+        totalEarned:
+          type: integer
+          description: 累计获得
+        totalUsed:
+          type: integer
+          description: 累计使用
+
+    PointsOrder:
+      type: object
+      required: [id, time, type, change, balance, description, status]
+      properties:
+        id:
+          type: string
+        time:
+          type: string
+          description: 如 2026-06-25 14:30:00
+        type:
+          type: string
+          enum: [recharge, earn, use]
+        change:
+          type: integer
+          description: 正数增加，负数扣减
+        balance:
+          type: integer
+          description: 变动后余额
+        description:
+          type: string
+        status:
+          type: string
+          enum: [completed, pending, failed]
+
+    PointsOrderPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PointsOrder'
+        total:
+          type: integer
+
+    RechargeRequest:
+      type: object
+      required: [amount, method]
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+          description: 充值金额（元），1 元 = 10 积分
+        method:
+          type: string
+          enum: [wechat, alipay]
+
+    RechargeResult:
+      type: object
+      required: [orderId]
+      properties:
+        orderId:
+          type: string
+
+    CatalogBook:
+      type: object
+      required: [id, title, author, coverColor, coverTitle]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        coverColor:
+          type: string
+        coverTitle:
+          type: string
+        coverUrl:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        updateStatus:
+          type: string
+        latestChapter:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        synopsis:
+          type: string
+
+    CatalogComment:
+      type: object
+      required: [id, user, content, date, likes, replyCount]
+      properties:
+        id:
+          type: string
+        user:
+          type: string
+        content:
+          type: string
+        date:
+          type: string
+          description: YYYY-MM-DD
+        likes:
+          type: integer
+        replyCount:
+          type: integer
+        replies:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogComment'
+
+    RankSection:
+      type: object
+      required: [title, highlight, items]
+      properties:
+        title:
+          type: string
+        highlight:
+          $ref: '#/components/schemas/CatalogBook'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogBook'
+
+    HomeCatalog:
+      type: object
+      required: [featured, rankSections]
+      properties:
+        featured:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogBook'
+        rankSections:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankSection'
+
+    CatalogFilterOption:
+      type: object
+      required: [label, value]
+      properties:
+        label:
+          type: string
+        value:
+          type: string
+
+    CatalogFilterRow:
+      type: object
+      required: [label, key, options]
+      properties:
+        label:
+          type: string
+        key:
+          type: string
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogFilterOption'
+        showMore:
+          type: boolean
+        showTagShield:
+          type: boolean
+
+    CatalogFilters:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogFilterRow'
+        allTags:
+          type: array
+          items:
+            type: string
+
+    CatalogBookPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogBook'
+        total:
+          type: integer
+
+    CatalogCommentPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogComment'
+        total:
+          type: integer
+
+    CreateCatalogCommentRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+
+    ReportCommentRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: 举报原因
+          enum:
+            - 辱骂、侮辱
+            - 引战、挑起争端
+            - 广告、推销
+            - 与书籍无关
+            - 其他
