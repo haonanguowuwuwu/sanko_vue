@@ -1,17 +1,29 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ArrowDown } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useSettingsStore, type BookViewMode } from '@/stores/settings'
 import { BOOK_READ_STATUS_OPTIONS } from '@/utils/bookReadStatus'
 
-defineProps<{
+const props = defineProps<{
   total: number
+  viewMode?: BookViewMode
+}>()
+
+const emit = defineEmits<{
+  'update:viewMode': [BookViewMode]
 }>()
 
 const settingsStore = useSettingsStore()
 const { bookViewMode, bookReadStatusFilter, cardCoverSize } = storeToRefs(settingsStore)
 
+const effectiveViewMode = computed(() => props.viewMode ?? bookViewMode.value)
+
 const setViewMode = (mode: BookViewMode) => {
+  if (props.viewMode !== undefined) {
+    emit('update:viewMode', mode)
+    return
+  }
   bookViewMode.value = mode
 }
 </script>
@@ -40,7 +52,7 @@ const setViewMode = (mode: BookViewMode) => {
     </div>
 
     <div class="book-list-toolbar__right">
-      <div v-if="bookViewMode === 'grid'" class="card-size-slider">
+      <div v-if="effectiveViewMode === 'grid'" class="card-size-slider">
         <span class="card-size-slider__label">大</span>
         <input
           v-model.number="cardCoverSize"
@@ -58,7 +70,7 @@ const setViewMode = (mode: BookViewMode) => {
         <button
           type="button"
           class="view-mode-btn"
-          :class="{ 'view-mode-btn--active': bookViewMode === 'grid' }"
+          :class="{ 'view-mode-btn--active': effectiveViewMode === 'grid' }"
           title="卡片模式"
           @click="setViewMode('grid')"
         >
@@ -72,7 +84,7 @@ const setViewMode = (mode: BookViewMode) => {
         <button
           type="button"
           class="view-mode-btn"
-          :class="{ 'view-mode-btn--active': bookViewMode === 'list' }"
+          :class="{ 'view-mode-btn--active': effectiveViewMode === 'list' }"
           title="列表模式"
           @click="setViewMode('list')"
         >

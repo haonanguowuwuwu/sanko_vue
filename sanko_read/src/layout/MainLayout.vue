@@ -73,9 +73,8 @@ const isLocalLibraryActive = computed(() => route.name === 'library')
 
 const isHomeRoute = computed(() => route.name === 'home' || route.name === 'book-intro')
 const isCategoriesRoute = computed(() => route.name === 'categories')
-const isProfileRoute = computed(
-  () => route.name === 'profile-points' || route.name === 'reading-history',
-)
+const isProfileRoute = computed(() => route.name === 'profile-points')
+const isReadingHistoryRoute = computed(() => route.name === 'reading-history')
 
 const openManageBookshelf = () => {
   showManageBookshelfDialog.value = true
@@ -329,9 +328,13 @@ onMounted(() => {
           'main-content--home': isHomeRoute,
           'main-content--categories': isCategoriesRoute,
           'main-content--profile': isProfileRoute,
+          'main-content--reading-history': isReadingHistoryRoute,
         }"
       >
-        <div class="main-content__inner">
+        <div
+          class="main-content__inner"
+          :class="{ 'main-content__inner--fixed-toolbar': isReadingHistoryRoute }"
+        >
           <router-view />
         </div>
       </el-main>
@@ -657,6 +660,11 @@ onMounted(() => {
   background: #f5f5f5;
 }
 
+.main-content--reading-history {
+  padding: 32px 40px;
+  background: var(--sanko-bg);
+}
+
 .main-content__inner {
   flex: 1;
   min-height: 0;
@@ -664,6 +672,10 @@ onMounted(() => {
   flex-direction: column;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+.main-content__inner--fixed-toolbar {
+  overflow: hidden;
 }
 </style>
 

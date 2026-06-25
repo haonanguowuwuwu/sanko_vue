@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
 import { fetchPointsOrders, fetchPointsSummary, rechargePoints } from '@/api/profile'
 import { POINTS_RULES, RECHARGE_PRESETS, type PointsOrder, type PointsOrderType } from '@/types/profile'
 import { useUserStore } from '@/stores/user'
@@ -29,6 +28,15 @@ const loading = ref(false)
 const orderFilter = ref<FilterType>('all')
 const currentPage = ref(1)
 const pageSize = 10
+
+function formatDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+const dateRange = ref<[string, string]>(['2026-06-01', formatDate(new Date())])
 
 const selectedAmount = ref<number | null>(null)
 const customAmount = ref('')
@@ -62,16 +70,24 @@ const loadSummary = async () => {
 const loadOrders = async () => {
   loading.value = true
   try {
+    const [startDate, endDate] = dateRange.value ?? []
     const result = await fetchPointsOrders({
       type: orderFilter.value,
       page: currentPage.value,
       pageSize,
+      startDate,
+      endDate,
     })
     orders.value = result.items
     ordersTotal.value = result.total
   } finally {
     loading.value = false
   }
+}
+
+const onDateRangeChange = () => {
+  currentPage.value = 1
+  void loadOrders()
 }
 
 const selectPreset = (amount: number) => {
@@ -286,8 +302,19 @@ onMounted(async () => {
           </button>
         </div>
         <div class="orders-date">
-          时间范围：2026-06-01 - 至今
-          <el-icon :size="12"><ArrowDown /></el-icon>
+          <span class="orders-date__label">时间范围：</span>
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            :clearable="false"
+            size="small"
+            class="orders-date-picker"
+            @change="onDateRangeChange"
+          />
         </div>
       </div>
 
@@ -687,8 +714,37 @@ onMounted(async () => {
 .orders-date {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 13px;
+  color: var(--sanko-text-secondary);
+}
+
+.orders-date__label {
+  white-space: nowrap;
+}
+
+.orders-date-picker {
+  width: 260px;
+}
+
+.orders-date-picker :deep(.el-input__wrapper) {
+  background: var(--sanko-search-bg);
+  box-shadow: none;
+  border: 1px solid var(--sanko-border);
+}
+
+.orders-date-picker :deep(.el-input__wrapper:hover),
+.orders-date-picker :deep(.el-input__wrapper.is-focus) {
+  box-shadow: none;
+  border-color: var(--sanko-green);
+}
+
+.orders-date-picker :deep(.el-range-input) {
+  font-size: 13px;
+  color: var(--sanko-text);
+}
+
+.orders-date-picker :deep(.el-range-separator) {
   color: var(--sanko-text-secondary);
 }
 

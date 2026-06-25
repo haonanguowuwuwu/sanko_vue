@@ -14,11 +14,19 @@ export async function fetchPointsOrders(params?: {
   type?: string
   page?: number
   pageSize?: number
+  startDate?: string
+  endDate?: string
 }): Promise<{ items: PointsOrder[]; total: number }> {
   if (USE_MOCK) {
     let items = [...mockState.pointsOrders]
     if (params?.type && params.type !== 'all') {
       items = items.filter((o) => o.type === params.type)
+    }
+    if (params?.startDate) {
+      items = items.filter((o) => o.time.slice(0, 10) >= params.startDate!)
+    }
+    if (params?.endDate) {
+      items = items.filter((o) => o.time.slice(0, 10) <= params.endDate!)
     }
     const page = params?.page ?? 1
     const pageSize = params?.pageSize ?? 10
@@ -32,6 +40,8 @@ export async function fetchPointsOrders(params?: {
   if (params?.type) query.set('type', params.type)
   if (params?.page) query.set('page', String(params.page))
   if (params?.pageSize) query.set('pageSize', String(params.pageSize))
+  if (params?.startDate) query.set('startDate', params.startDate)
+  if (params?.endDate) query.set('endDate', params.endDate)
   const qs = query.toString()
   return request<{ items: PointsOrder[]; total: number }>(
     `/api/profile/points/orders${qs ? `?${qs}` : ''}`,

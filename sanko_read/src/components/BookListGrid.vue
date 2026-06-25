@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { Book } from '@/types/book'
 import EmptyState from '@/components/EmptyState.vue'
@@ -8,7 +8,7 @@ import BookListRow from '@/components/BookListRow.vue'
 import BookListToolbar from '@/components/BookListToolbar.vue'
 import BookMultiSelectBar from '@/components/BookMultiSelectBar.vue'
 import { useBooksStore } from '@/stores/books'
-import { useSettingsStore } from '@/stores/settings'
+import { useSettingsStore, type BookViewMode } from '@/stores/settings'
 import { filterBooksByReadStatus } from '@/utils/bookReadStatus'
 
 const CARD_MIN_WIDTH = 120
@@ -18,11 +18,26 @@ const props = defineProps<{
   books: Book[]
   emptyTitle?: string
   emptyDescription?: string
+  defaultViewMode?: BookViewMode
 }>()
 
 const booksStore = useBooksStore()
 const { selectionMode } = storeToRefs(booksStore)
 const { bookViewMode, bookReadStatusFilter, cardCoverSize } = storeToRefs(useSettingsStore())
+
+const pageViewMode = ref<BookViewMode | null>(
+  props.defaultViewMode !== undefined ? props.defaultViewMode : null,
+)
+
+const effectiveViewMode = computed(() => pageViewMode.value ?? bookViewMode.value)
+
+const setViewMode = (mode: BookViewMode) => {
+  if (props.defaultViewMode !== undefined) {
+    pageViewMode.value = mode
+    return
+  }
+  bookViewMode.value = mode
+}
 
 const cardWidth = computed(() =>
   Math.round(
@@ -62,7 +77,7 @@ const showFilterEmpty = computed(
 
       <template v-else-if="filteredBooks.length > 0">
         <div
-          v-if="bookViewMode === 'grid'"
+          v-if="effectiveViewMode === 'grid'"
           class="book-grid"
           :style="{ '--book-card-width': `${cardWidth}px` }"
         >
@@ -75,7 +90,11 @@ const showFilterEmpty = computed(
       </template>
     </div>
 
-    <BookListToolbar :total="props.books.length" />
+    <BookListToolbar
+      :total="props.books.length"
+      :view-mode="effectiveViewMode"
+      @update:view-mode="setViewMode"
+    />
 
     <BookMultiSelectBar v-if="selectionMode" :book-ids="bookIds" />
   </div>
