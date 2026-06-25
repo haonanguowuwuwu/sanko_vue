@@ -8,6 +8,7 @@ const router = createRouter({
     {
       path: '/read/:id',
       name: 'reader',
+      meta: { requiresAuth: true },
       component: () => import('@/views/ReaderView.vue'),
     },
     {

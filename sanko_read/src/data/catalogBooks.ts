@@ -1,3 +1,6 @@
+import type { Book } from '@/types/book'
+import { formatAddedDate } from '@/types/book'
+
 export interface CatalogComment {
   id: string
   user: string
@@ -54,6 +57,14 @@ const santiComments: CatalogComment[] = [
         likes: 12,
         replyCount: 0,
       },
+      {
+        id: 'c1-r2',
+        user: '用户6',
+        content: '第一部节奏稍慢，但后面越来越精彩。',
+        date: '2026-06-04',
+        likes: 5,
+        replyCount: 0,
+      },
     ],
   },
   {
@@ -70,6 +81,30 @@ const santiComments: CatalogComment[] = [
         content: '黑暗森林法则太震撼了。',
         date: '2026-06-04',
         likes: 8,
+        replyCount: 0,
+      },
+      {
+        id: 'c2-r2',
+        user: '用户7',
+        content: '程心这个角色争议很大，但正是这种争议让故事更有张力。',
+        date: '2026-06-05',
+        likes: 6,
+        replyCount: 0,
+      },
+      {
+        id: 'c2-r3',
+        user: '用户8',
+        content: '水滴攻击那段看得我头皮发麻。',
+        date: '2026-06-06',
+        likes: 15,
+        replyCount: 0,
+      },
+      {
+        id: 'c2-r4',
+        user: '用户9',
+        content: '建议先看一遍原著再看解读，体验完全不同。',
+        date: '2026-06-07',
+        likes: 3,
         replyCount: 0,
       },
     ],
@@ -171,4 +206,19 @@ export function getCatalogBook(id: string): CatalogBook | undefined {
 
 export function getAllCatalogBooks(): CatalogBook[] {
   return Array.from(catalogBookMap.values())
+}
+
+export function catalogBookToLibraryBook(catalog: CatalogBook): Book {
+  return {
+    id: catalog.id,
+    title: catalog.title,
+    author: catalog.author,
+    progress: 0,
+    coverColor: catalog.coverColor,
+    coverTitle: catalog.coverTitle,
+    fileSize: '—',
+    format: 'EPUB',
+    addedAt: formatAddedDate(),
+    category: catalog.category?.split(' · ')[0] ?? '未分类',
+  }
 }

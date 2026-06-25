@@ -2,23 +2,23 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, CircleClose, ChatDotRound, Pointer } from '@element-plus/icons-vue'
+import { ArrowLeft, Reading } from '@element-plus/icons-vue'
 import HeartIcon from '@/components/HeartIcon.vue'
-import { getCatalogBook, type CatalogComment } from '@/data/catalogBooks'
+import BookCommentSection from '@/components/book/BookCommentSection.vue'
+import AddToBookshelfDialog from '@/components/AddToBookshelfDialog.vue'
+import { catalogBookToLibraryBook, getCatalogBook } from '@/data/catalogBooks'
+import { useBooksStore } from '@/stores/books'
+import { useRequireLogin } from '@/composables/useRequireLogin'
 
 const route = useRoute()
 const router = useRouter()
+const booksStore = useBooksStore()
+const { isLoggedIn, requireLogin } = useRequireLogin()
 
 const book = computed(() => getCatalogBook(route.params.id as string))
 const liked = ref(false)
 const blocked = ref(false)
-const expandedReplies = ref<Record<string, boolean>>({})
-const showAllComments = ref(false)
-
-const visibleComments = computed(() => {
-  const comments = book.value?.comments ?? []
-  return showAllComments.value ? comments : comments.slice(0, 2)
-})
+const showAddToShelfDialog = ref(false)
 
 const goBack = () => {
   router.push('/')
@@ -35,24 +35,29 @@ const toggleBlock = () => {
 }
 
 const startReading = () => {
-  ElMessage.info('该书籍尚未加入书架，请先导入或购买')
+  if (!book.value) return
+  const readerPath = `/read/${book.value.id}`
+  requireLogin(async () => {
+    await booksStore.ensureBookInLibrary(catalogBookToLibraryBook(book.value!))
+    void router.push(readerPath)
+  }, '请先登录后再阅读', readerPath)
 }
 
-const toggleReplies = (commentId: string) => {
-  expandedReplies.value[commentId] = !expandedReplies.value[commentId]
+const openAddToShelf = () => {
+  requireLogin(() => {
+    showAddToShelfDialog.value = true
+  }, '请先登录后再加入书架')
 }
 
-const isRepliesExpanded = (comment: CatalogComment) =>
-  expandedReplies.value[comment.id] ?? false
-
-const visibleReplies = (comment: CatalogComment) => {
-  const replies = comment.replies ?? []
-  if (isRepliesExpanded(comment)) return replies
-  return replies.slice(0, 1)
+const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
+  if (!book.value) return
+  if (shelfCount > 0) {
+    await booksStore.ensureBookInLibrary(catalogBookToLibraryBook(book.value))
+    ElMessage.success('已加入书架')
+  } else {
+    ElMessage.success('已从书架移除')
+  }
 }
-
-const hasMoreReplies = (comment: CatalogComment) =>
-  (comment.replies?.length ?? 0) > 1 && !isRepliesExpanded(comment)
 </script>
 
 <template>
@@ -115,6 +120,10 @@ const hasMoreReplies = (comment: CatalogComment) =>
     </p>
 
     <div class="book-intro__actions">
+      <button type="button" class="book-intro__shelf" @click="openAddToShelf">
+        <el-icon :size="18"><Reading /></el-icon>
+        加入书架
+      </button>
       <button
         type="button"
         class="book-intro__like"
@@ -127,88 +136,13 @@ const hasMoreReplies = (comment: CatalogComment) =>
       <button type="button" class="book-intro__read" @click="startReading">开始阅读</button>
     </div>
 
-    <section v-if="book.comments?.length" class="book-intro__comments">
-      <h2 class="book-intro__comments-heading">评论</h2>
+    <BookCommentSection :initial-comments="book.comments" :interactive="isLoggedIn" />
 
-      <article v-for="comment in visibleComments" :key="comment.id" class="book-comment">
-        <div class="book-comment__main">
-          <div class="book-comment__avatar" aria-hidden="true" />
-          <div class="book-comment__body">
-            <div class="book-comment__header">
-              <span class="book-comment__user">{{ comment.user }}</span>
-              <button type="button" class="book-comment__report">
-                <el-icon :size="14"><CircleClose /></el-icon>
-                举报
-              </button>
-            </div>
-            <p class="book-comment__content">{{ comment.content }}</p>
-            <div class="book-comment__footer">
-              <span class="book-comment__date">{{ comment.date }}</span>
-              <button type="button" class="book-comment__reply">回复</button>
-            </div>
-          </div>
-          <div class="book-comment__stats">
-            <span class="book-comment__stat">
-              <el-icon :size="16"><ChatDotRound /></el-icon>
-              {{ comment.replyCount }}
-            </span>
-            <span class="book-comment__stat">
-              <el-icon :size="16"><Pointer /></el-icon>
-              {{ comment.likes }}
-            </span>
-          </div>
-        </div>
-
-        <div v-if="comment.replies?.length" class="book-comment__replies">
-          <article
-            v-for="reply in visibleReplies(comment)"
-            :key="reply.id"
-            class="book-comment book-comment--reply"
-          >
-            <div class="book-comment__main">
-              <div class="book-comment__avatar" aria-hidden="true" />
-              <div class="book-comment__body">
-                <div class="book-comment__header">
-                  <span class="book-comment__user">{{ reply.user }}</span>
-                  <button type="button" class="book-comment__report">
-                    <el-icon :size="14"><CircleClose /></el-icon>
-                    举报
-                  </button>
-                </div>
-                <p class="book-comment__content">{{ reply.content }}</p>
-                <div class="book-comment__footer">
-                  <span class="book-comment__date">{{ reply.date }}</span>
-                  <button type="button" class="book-comment__reply">回复</button>
-                </div>
-              </div>
-              <div class="book-comment__stats">
-                <span class="book-comment__stat">
-                  <el-icon :size="16"><Pointer /></el-icon>
-                  {{ reply.likes }}
-                </span>
-              </div>
-            </div>
-          </article>
-          <button
-            v-if="hasMoreReplies(comment)"
-            type="button"
-            class="book-comment__load-more"
-            @click="toggleReplies(comment.id)"
-          >
-            加载更多回复
-          </button>
-        </div>
-      </article>
-
-      <button
-        v-if="!showAllComments && (book.comments?.length ?? 0) > 2"
-        type="button"
-        class="book-intro__load-more"
-        @click="showAllComments = true"
-      >
-        加载更多评论
-      </button>
-    </section>
+    <AddToBookshelfDialog
+      v-model:visible="showAddToShelfDialog"
+      :book-ids="[book.id]"
+      @success="onAddToShelfSuccess"
+    />
   </div>
 
   <div v-else class="book-intro book-intro--empty">
@@ -372,6 +306,24 @@ const hasMoreReplies = (comment: CatalogComment) =>
   margin-bottom: 28px;
 }
 
+.book-intro__shelf {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  border: none;
+  background: none;
+  color: #1a8a8f;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.book-intro__shelf:hover {
+  opacity: 0.85;
+}
+
 .book-intro__like {
   display: inline-flex;
   align-items: center;
@@ -410,134 +362,6 @@ const hasMoreReplies = (comment: CatalogComment) =>
   background: var(--sanko-green-hover);
 }
 
-.book-intro__comments-heading {
-  margin: 0 0 16px;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--sanko-green);
-}
-
-.book-comment {
-  padding: 16px 0;
-  border-top: 1px solid var(--sanko-border);
-}
-
-.book-comment__main {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.book-comment__avatar {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #d9d9d9;
-}
-
-.book-comment__body {
-  flex: 1;
-  min-width: 0;
-}
-
-.book-comment__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 6px;
-}
-
-.book-comment__user {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--sanko-text);
-}
-
-.book-comment__report {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: none;
-  background: none;
-  color: var(--sanko-text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.book-comment__content {
-  margin: 0 0 8px;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--sanko-text);
-}
-
-.book-comment__footer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.book-comment__date {
-  font-size: 12px;
-  color: var(--sanko-text-secondary);
-}
-
-.book-comment__reply {
-  border: none;
-  background: none;
-  padding: 0;
-  font-size: 12px;
-  color: var(--sanko-text-secondary);
-  cursor: pointer;
-}
-
-.book-comment__stats {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  padding-top: 2px;
-}
-
-.book-comment__stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--sanko-text-secondary);
-}
-
-.book-comment__replies {
-  margin-left: 48px;
-  margin-top: 4px;
-}
-
-.book-comment--reply {
-  padding: 12px 0;
-  border-top: none;
-}
-
-.book-comment__load-more,
-.book-intro__load-more {
-  display: block;
-  margin: 8px 0 0 48px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: #1a8a8f;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.book-intro__load-more {
-  margin: 12px 0 0;
-  text-align: center;
-  width: 100%;
-}
-
 @media (max-width: 1100px) {
   .book-intro {
     --book-intro-inset: 48px;
@@ -566,10 +390,6 @@ const hasMoreReplies = (comment: CatalogComment) =>
   .book-intro__read {
     width: 100%;
     text-align: center;
-  }
-
-  .book-comment__replies {
-    margin-left: 24px;
   }
 }
 </style>

@@ -50,7 +50,7 @@ const handleBookshelf = () => {
   showAddToShelfDialog.value = true
 }
 
-const onAddToShelfSuccess = () => {
+const onAddToShelfSuccess = (_payload: { shelfCount: number }) => {
   ElMessage.success(`已将 ${selectedCount.value} 本书添加到书架`)
   booksStore.exitSelectionMode()
 }

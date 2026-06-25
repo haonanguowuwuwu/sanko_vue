@@ -304,6 +304,14 @@ export const useBooksStore = defineStore('books', () => {
     return bookIds.length > 0 && bookIds.every((id) => selectedIds.value.has(id))
   }
 
+  async function ensureBookInLibrary(book: Book) {
+    const existing = books.value.find((b) => b.id === book.id)
+    if (existing) return existing
+    const saved = await booksApi.ensureBook(book)
+    books.value.push(saved)
+    return saved
+  }
+
   async function searchRemote(query: string) {
     searchQuery.value = query
     if (!query.trim()) {
@@ -381,6 +389,7 @@ export const useBooksStore = defineStore('books', () => {
     selectAllFromList,
     isAllSelectedInList,
     searchRemote,
+    ensureBookInLibrary,
     applyRemoteData,
   }
 })

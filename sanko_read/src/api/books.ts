@@ -112,6 +112,20 @@ export async function importBook(file?: File): Promise<Book> {
   return request<Book>('/api/books/import', { method: 'POST', body: form })
 }
 
+export async function ensureBook(book: Book): Promise<Book> {
+  if (USE_MOCK) {
+    const existing = mockState.books.find((b) => b.id === book.id)
+    if (existing) return mockDelay(existing)
+    mockState.books.push(book)
+    return mockDelay(book)
+  }
+  try {
+    return await request<Book>(`/api/books/${book.id}`)
+  } catch {
+    return request<Book>('/api/books', { method: 'POST', body: book })
+  }
+}
+
 export async function trashBook(id: string): Promise<void> {
   if (USE_MOCK) {
     const index = mockState.books.findIndex((b) => b.id === id)

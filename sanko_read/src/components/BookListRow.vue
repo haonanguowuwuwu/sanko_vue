@@ -75,8 +75,8 @@ const confirmDelete = async () => {
   ElMessage.success('已删除书籍')
 }
 
-const onAddToShelfSuccess = () => {
-  ElMessage.success('已添加到书架')
+const onAddToShelfSuccess = ({ shelfCount }: { shelfCount: number }) => {
+  ElMessage.success(shelfCount > 0 ? '已添加到书架' : '已从书架移除')
 }
 </script>
 

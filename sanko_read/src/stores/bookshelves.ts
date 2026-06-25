@@ -69,6 +69,29 @@ export const useBookshelvesStore = defineStore('bookshelves', () => {
     await Promise.all(bookIds.map((bookId) => addBookToShelf(shelfId, bookId)))
   }
 
+  async function removeBookFromShelf(shelfId: string, bookId: string) {
+    await bookshelvesApi.removeBookFromShelf(shelfId, bookId)
+    const shelf = getShelfById(shelfId)
+    if (shelf) {
+      shelf.bookIds = shelf.bookIds.filter((id) => id !== bookId)
+    }
+  }
+
+  async function syncBookOnShelves(bookId: string, shelfIds: string[]) {
+    const targetSet = new Set(shelfIds)
+    const tasks: Promise<void>[] = []
+    for (const shelf of shelves.value) {
+      const hasBook = shelf.bookIds.includes(bookId)
+      const shouldHave = targetSet.has(shelf.id)
+      if (shouldHave && !hasBook) {
+        tasks.push(addBookToShelf(shelf.id, bookId))
+      } else if (!shouldHave && hasBook) {
+        tasks.push(removeBookFromShelf(shelf.id, bookId))
+      }
+    }
+    await Promise.all(tasks)
+  }
+
   function removeBookFromAllShelves(bookId: string) {
     shelves.value.forEach((shelf) => {
       shelf.bookIds = shelf.bookIds.filter((id) => id !== bookId)
@@ -98,6 +121,8 @@ export const useBookshelvesStore = defineStore('bookshelves', () => {
     addBookToShelf,
     addBookToShelves,
     addBooksToShelf,
+    removeBookFromShelf,
+    syncBookOnShelves,
     removeBookFromAllShelves,
     getBooksInShelf,
     applyRemoteData,
