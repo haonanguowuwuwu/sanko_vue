@@ -2,6 +2,7 @@ import { USE_MOCK } from '@/api/config'
 import { request } from '@/api/request'
 import type { ReaderBookmark, ReaderHighlight, ReaderSpread } from '@/types/reader'
 import { mockDelay, mockGetReaderContent, mockState } from '@/api/mock/state'
+import { persistMockAnnotations } from '@/api/mock/annotationPersistence'
 
 export async function getBookContent(bookId: string): Promise<ReaderSpread[]> {
   if (USE_MOCK) {
@@ -41,6 +42,7 @@ export async function createAnnotation(
       createdAt: new Date().toISOString(),
     }
     mockState.highlights.push(highlight)
+    persistMockAnnotations()
     return mockDelay(highlight)
   }
   return request<ReaderHighlight>('/api/annotations', { method: 'POST', body: payload })
@@ -67,6 +69,7 @@ export async function updateAnnotation(
     const item = mockState.highlights.find((h) => h.id === id)
     if (!item) throw new Error('标注不存在')
     Object.assign(item, payload)
+    persistMockAnnotations()
     return mockDelay({ ...item })
   }
   return request<ReaderHighlight>(`/api/annotations/${id}`, { method: 'PATCH', body: payload })
@@ -75,6 +78,7 @@ export async function updateAnnotation(
 export async function deleteAnnotation(id: string): Promise<void> {
   if (USE_MOCK) {
     mockState.highlights = mockState.highlights.filter((h) => h.id !== id)
+    persistMockAnnotations()
     return mockDelay(undefined)
   }
   await request<void>(`/api/annotations/${id}`, { method: 'DELETE' })
@@ -105,6 +109,7 @@ export async function createBookmark(
       createdAt: new Date().toISOString(),
     }
     mockState.bookmarks.push(bookmark)
+    persistMockAnnotations()
     return mockDelay(bookmark)
   }
   return request<ReaderBookmark>('/api/bookmarks', {
@@ -116,6 +121,7 @@ export async function createBookmark(
 export async function deleteBookmark(id: string): Promise<void> {
   if (USE_MOCK) {
     mockState.bookmarks = mockState.bookmarks.filter((b) => b.id !== id)
+    persistMockAnnotations()
     return mockDelay(undefined)
   }
   await request<void>(`/api/bookmarks/${id}`, { method: 'DELETE' })
@@ -125,4 +131,5 @@ export function syncMockAnnotations(highlights: ReaderHighlight[], bookmarks: Re
   if (!USE_MOCK) return
   mockState.highlights = [...highlights]
   mockState.bookmarks = [...bookmarks]
+  persistMockAnnotations()
 }

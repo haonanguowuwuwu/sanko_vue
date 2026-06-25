@@ -19,6 +19,7 @@ import type { HighlightColor } from '@/types/reader'
 import { configService } from '@/reader/configService'
 import { isPdfFormat, supportsAnnotationHighlight } from '@/reader/readerSettings'
 import { exitReader } from '@/utils/readerNavigation'
+import { seedDemoAnnotationsIfNeeded } from '@/api/mock/demoAnnotations'
 
 const route = useRoute()
 const router = useRouter()
@@ -412,9 +413,14 @@ watch(bookId, () => {
 })
 
 onMounted(() => {
-  if (bookId.value) {
-    void booksStore.touchLastRead(bookId.value)
+  if (!bookId.value) return
+  if (book.value) {
+    const seeded = seedDemoAnnotationsIfNeeded(bookId.value, book.value.format)
+    if (seeded) {
+      void annotationsStore.fetchAll()
+    }
   }
+  void booksStore.touchLastRead(bookId.value)
 })
 </script>
 

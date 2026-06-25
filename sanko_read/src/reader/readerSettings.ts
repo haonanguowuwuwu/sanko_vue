@@ -58,10 +58,19 @@ export function isTextHighlightFormat(format: string): boolean {
   return normalized === 'TXT' || normalized === 'DOCX'
 }
 
-/** 支持划词高亮与笔记的格式（含 PDF 文本层） */
+export function isEpubFormat(format: string): boolean {
+  return format.toUpperCase() === 'EPUB'
+}
+
+/** 支持划词高亮与笔记的格式（含 PDF 文本层、EPUB iframe 正文） */
 export function supportsAnnotationHighlight(format: string): boolean {
   const normalized = format.toUpperCase()
-  return normalized === 'TXT' || normalized === 'DOCX' || normalized === 'PDF'
+  return (
+    normalized === 'TXT' ||
+    normalized === 'DOCX' ||
+    normalized === 'PDF' ||
+    normalized === 'EPUB'
+  )
 }
 
 export function resolveReaderModeForFormat(format: string, mode?: ReaderMode): ReaderMode {

@@ -46,7 +46,11 @@ function onDialogClose(visible: boolean) {
 
 <template>
   <div class="annotation-page">
-    <EmptyState v-if="notes.length === 0" title="笔记为空" />
+    <EmptyState
+      v-if="notes.length === 0"
+      title="笔记为空"
+      description="在阅读器中选中文本后点击「笔记」即可添加。演示样本书首次阅读会自动加入示例笔记。"
+    />
 
     <div v-else class="annotation-list">
       <AnnotationCard

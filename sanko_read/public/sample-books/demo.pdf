@@ -1,0 +1,105 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 9 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 450 >>
+stream
+BT
+/F1 12 Tf
+1 0 0 1 50 750 Tm
+(欢迎使用 Sanko 阅读器) Tj
+0 -16 Td
+( ) Tj
+0 -16 Td
+(这是 Sanko 阅读器的演示样本书，用于展示 EPUB、PDF、DOCX 等格式的阅读效果。) Tj
+0 -16 Td
+( ) Tj
+0 -16 Td
+(你可以尝试划词高亮、添加笔记、添加书签，并在侧边栏查看目录与标注列表。) Tj
+0 -16 Td
+( ) Tj
+0 -16 Td
+(本内容为演示专用，篇幅不长，方便快速浏览各项功能。) Tj
+0 -16 Td
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 9 0 R >> >> >>
+endobj
+6 0 obj
+<< /Length 435 >>
+stream
+BT
+/F1 12 Tf
+1 0 0 1 50 750 Tm
+(阅读与标注) Tj
+0 -16 Td
+( ) Tj
+0 -16 Td
+(选中一段文字后，会出现工具栏：可选择颜色高亮，或打开笔记对话框写下想法。) Tj
+0 -16 Td
+( ) Tj
+0 -16 Td
+(高亮会保存在「高亮」页面；带笔记内容的标注会出现在「笔记」页面。) Tj
+0 -16 Td
+( ) Tj
+0 -16 Td
+(点击列表中的条目，可以跳转回原文对应位置继续阅读。) Tj
+0 -16 Td
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 9 0 R >> >> >>
+endobj
+8 0 obj
+<< /Length 391 >>
+stream
+BT
+/F1 12 Tf
+1 0 0 1 50 750 Tm
+(继续探索) Tj
+0 -16 Td
+( ) Tj
+0 -16 Td
+(你可以导入自己的 PDF、EPUB、DOCX、TXT 等文件到书库中阅读。) Tj
+0 -16 Td
+( ) Tj
+0 -16 Td
+(阅读进度、书签和标注会在当前会话中保留；本地 Mock 模式下刷新页面后需重新导入文件。) Tj
+0 -16 Td
+( ) Tj
+0 -16 Td
+(感谢使用 Sanko，祝阅读愉快。) Tj
+0 -16 Td
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000253 00000 n 
+0000000754 00000 n 
+0000000880 00000 n 
+0000001366 00000 n 
+0000001492 00000 n 
+0000001934 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+2004
+%%EOF

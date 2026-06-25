@@ -10,7 +10,11 @@ const { highlightOnly } = storeToRefs(annotationsStore)
 
 <template>
   <div class="annotation-page">
-    <EmptyState v-if="highlightOnly.length === 0" title="高亮为空" />
+    <EmptyState
+      v-if="highlightOnly.length === 0"
+      title="高亮为空"
+      description="在阅读器中选中文本并选择颜色即可添加。打开演示样本书后会自动加入示例高亮。"
+    />
 
     <div v-else class="annotation-list">
       <AnnotationCard v-for="item in highlightOnly" :key="item.id" :item="item" mode="highlight" />

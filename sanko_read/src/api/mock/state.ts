@@ -14,6 +14,7 @@ import {
   removeMockBookFile,
   storeMockBookFile,
 } from '@/api/mock/fileStore'
+import { hydrateMockAnnotationsFromStorage } from '@/api/mock/annotationPersistence'
 
 let bookIdCounter = 1
 let shelfIdCounter = 1
@@ -262,3 +263,5 @@ export function mockNextBookmarkId() {
 export function mockNextHighlightId() {
   return `hl-${highlightIdCounter++}`
 }
+
+hydrateMockAnnotationsFromStorage()

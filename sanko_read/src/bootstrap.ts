@@ -1,5 +1,6 @@
 import { USE_MOCK } from '@/api/config'
 import { mockState } from '@/api/mock/state'
+import { seedDemoAnnotationsIfNeeded } from '@/api/mock/demoAnnotations'
 import { useUserStore } from '@/stores/user'
 import { useBooksStore } from '@/stores/books'
 import { useBookshelvesStore } from '@/stores/bookshelves'
@@ -23,6 +24,15 @@ export async function bootstrapApp() {
   ])
 
   if (USE_MOCK) {
+    let seeded = false
+    for (const book of booksStore.books) {
+      if (seedDemoAnnotationsIfNeeded(book.id, book.format)) {
+        seeded = true
+      }
+    }
+    if (seeded) {
+      await annotationsStore.fetchAll()
+    }
     settingsApiSyncMock(settingsStore)
   }
 }

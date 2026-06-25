@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import type { Book } from '@/types/book'
 import { formatAddedDate } from '@/types/book'
 import * as booksApi from '@/api/books'
+import { seedDemoAnnotationsIfNeeded } from '@/api/mock/demoAnnotations'
 import { useSettingsStore } from '@/stores/settings'
 
 export type SortField =
@@ -306,9 +307,13 @@ export const useBooksStore = defineStore('books', () => {
 
   async function ensureBookInLibrary(book: Book) {
     const existing = books.value.find((b) => b.id === book.id)
-    if (existing) return existing
+    if (existing) {
+      seedDemoAnnotationsIfNeeded(book.id, existing.format)
+      return existing
+    }
     const saved = await booksApi.ensureBook(book)
     books.value.push(saved)
+    seedDemoAnnotationsIfNeeded(saved.id, saved.format)
     return saved
   }
 

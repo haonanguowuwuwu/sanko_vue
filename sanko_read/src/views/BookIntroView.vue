@@ -6,13 +6,16 @@ import { ArrowLeft, Reading } from '@element-plus/icons-vue'
 import HeartIcon from '@/components/HeartIcon.vue'
 import BookCommentSection from '@/components/book/BookCommentSection.vue'
 import AddToBookshelfDialog from '@/components/AddToBookshelfDialog.vue'
-import { catalogBookToLibraryBook, getCatalogBook } from '@/data/catalogBooks'
 import { useBooksStore } from '@/stores/books'
+import { useReaderAnnotationsStore } from '@/stores/readerAnnotations'
+import { catalogBookToLibraryBook, getCatalogBook } from '@/data/catalogBooks'
+import { seedDemoAnnotationsIfNeeded } from '@/api/mock/demoAnnotations'
 import { useRequireLogin } from '@/composables/useRequireLogin'
 
 const route = useRoute()
 const router = useRouter()
 const booksStore = useBooksStore()
+const annotationsStore = useReaderAnnotationsStore()
 const { isLoggedIn, requireLogin } = useRequireLogin()
 
 const book = computed(() => getCatalogBook(route.params.id as string))
@@ -38,7 +41,11 @@ const startReading = () => {
   if (!book.value) return
   const readerPath = `/read/${book.value.id}`
   requireLogin(async () => {
-    await booksStore.ensureBookInLibrary(catalogBookToLibraryBook(book.value!))
+    const saved = await booksStore.ensureBookInLibrary(catalogBookToLibraryBook(book.value!))
+    const seeded = seedDemoAnnotationsIfNeeded(saved.id, saved.format)
+    if (seeded) {
+      await annotationsStore.fetchAll()
+    }
     void router.push(readerPath)
   }, '请先登录后再阅读', readerPath)
 }
@@ -52,7 +59,11 @@ const openAddToShelf = () => {
 const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
   if (!book.value) return
   if (shelfCount > 0) {
-    await booksStore.ensureBookInLibrary(catalogBookToLibraryBook(book.value))
+    const saved = await booksStore.ensureBookInLibrary(catalogBookToLibraryBook(book.value))
+    const seeded = seedDemoAnnotationsIfNeeded(saved.id, saved.format)
+    if (seeded) {
+      await annotationsStore.fetchAll()
+    }
     ElMessage.success('已加入书架')
   } else {
     ElMessage.success('已从书架移除')

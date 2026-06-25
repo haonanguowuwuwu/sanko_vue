@@ -10,7 +10,9 @@ import {
   mockState,
   mockStoreImportedFile,
 } from '@/api/mock/state'
-import { mockGetBookFileUrl as resolveMockBookFileUrl } from '@/api/mock/fileStore'
+import { mockGetBookFileUrl as resolveMockBookFileUrl, getMockBookBuffer, formatFileSize } from '@/api/mock/fileStore'
+import { buildMockSampleBookFileUrl, mockAttachSampleFile } from '@/api/mock/sampleBooks'
+import { seedDemoAnnotationsIfNeeded } from '@/api/mock/demoAnnotations'
 
 export interface BookProgressPayload {
   progress: number
@@ -24,22 +26,8 @@ export interface BookFileUrl {
   contentLength?: number
 }
 
-function mockSampleBookUrl(format: string) {
-  const base = import.meta.env.BASE_URL || '/'
-  const normalizedBase = base.endsWith('/') ? base : `${base}/`
-  const sampleMap: Record<string, string> = {
-    TXT: `${normalizedBase}sample-books/demo.txt`,
-    EPUB: `${normalizedBase}sample-books/demo.txt`,
-    PDF: `${normalizedBase}sample-books/demo.txt`,
-    DOCX: `${normalizedBase}sample-books/demo.txt`,
-  }
-  const path = sampleMap[format.toUpperCase()] ?? sampleMap.TXT!
-  const url = new URL(path, window.location.origin).href
-  return {
-    url,
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-    contentType: 'text/plain; charset=utf-8',
-  } satisfies BookFileUrl
+function mockSampleBookUrl(format: string): BookFileUrl {
+  return buildMockSampleBookFileUrl(format)
 }
 
 export async function getBookFileUrl(bookId: string): Promise<BookFileUrl> {
@@ -102,6 +90,11 @@ export async function importBook(file?: File): Promise<Book> {
     if (!book) {
       throw new Error('所有样本书籍已导入完毕')
     }
+    await mockAttachSampleFile(book.id, book.format)
+    const buffer = getMockBookBuffer(book.id)
+    if (buffer) {
+      book.fileSize = formatFileSize(buffer.byteLength)
+    }
     return mockDelay(book)
   }
 
@@ -115,8 +108,12 @@ export async function importBook(file?: File): Promise<Book> {
 export async function ensureBook(book: Book): Promise<Book> {
   if (USE_MOCK) {
     const existing = mockState.books.find((b) => b.id === book.id)
-    if (existing) return mockDelay(existing)
+    if (existing) {
+      seedDemoAnnotationsIfNeeded(book.id, existing.format)
+      return mockDelay(existing)
+    }
     mockState.books.push(book)
+    seedDemoAnnotationsIfNeeded(book.id, book.format)
     return mockDelay(book)
   }
   try {

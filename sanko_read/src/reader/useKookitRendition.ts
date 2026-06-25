@@ -7,6 +7,7 @@ import {
   isPaginatedTextFormat,
   isPdfFormat,
   supportsAnnotationHighlight,
+  isEpubFormat,
   loadReaderSettings,
   normalizeSettingsForFormat,
 } from '@/reader/readerSettings'
@@ -183,6 +184,7 @@ export function useKookitRendition(
 
   let selectionCleanup: (() => void) | null = null
   let refreshPdfSubDocBindings: (() => void) | null = null
+  let refreshEpubIframeBindings: (() => void) | null = null
   const annotationsStore = useReaderAnnotationsStore()
 
   function applyReaderStyles(bookKey: string) {
@@ -700,10 +702,72 @@ export function useKookitRendition(
     }
   }
 
+  function bindEpubTextSelection(r: KookitRenditionInstance) {
+    let iframeCleanup: (() => void) | null = null
+
+    const refresh = () => {
+      iframeCleanup?.()
+      iframeCleanup = null
+
+      const iframe = r.getIframe?.()
+      const doc = iframe?.contentDocument
+      if (!doc) return
+
+      const onHighlightClick = (event: MouseEvent) => {
+        handleExistingHighlightClick(event, doc)
+      }
+
+      const onMouseUp = () => {
+        window.setTimeout(() => {
+          void captureTextSelection(r)
+        }, 12)
+      }
+
+      doc.addEventListener('click', onHighlightClick, true)
+      doc.addEventListener('mouseup', onMouseUp)
+      iframeCleanup = () => {
+        doc.removeEventListener('click', onHighlightClick, true)
+        doc.removeEventListener('mouseup', onMouseUp)
+      }
+    }
+
+    refresh()
+    refreshEpubIframeBindings = refresh
+
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (findHighlightKeyFromTarget(target)) return
+      const iframe = r.getIframe?.()
+      const doc = iframe?.contentDocument
+      if (doc?.contains(target)) return
+      if (target instanceof Element && target.closest('.selection-toolbar, .reader-note-dialog')) {
+        return
+      }
+      clearTextSelection()
+    }
+
+    document.addEventListener('mousedown', onMouseDown)
+
+    selectionCleanup = () => {
+      iframeCleanup?.()
+      iframeCleanup = null
+      document.removeEventListener('mousedown', onMouseDown)
+      refreshEpubIframeBindings = null
+    }
+  }
+
   function bindTextSelection(r: KookitRenditionInstance) {
     if (isPdfFormat(options.value.format)) {
       if (refreshPdfSubDocBindings) {
         refreshPdfSubDocBindings()
+        return
+      }
+    }
+
+    if (isEpubFormat(options.value.format)) {
+      if (refreshEpubIframeBindings) {
+        refreshEpubIframeBindings()
         return
       }
     }
@@ -716,6 +780,11 @@ export function useKookitRendition(
 
     if (isPdfFormat(options.value.format)) {
       bindPdfTextSelection(r)
+      return
+    }
+
+    if (isEpubFormat(options.value.format)) {
+      bindEpubTextSelection(r)
       return
     }
 

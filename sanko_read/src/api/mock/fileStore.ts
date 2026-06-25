@@ -65,6 +65,23 @@ export function storeMockBookFile(bookId: string, file: File, buffer: ArrayBuffe
   })
 }
 
+export function storeMockBookBuffer(
+  bookId: string,
+  format: string,
+  fileName: string,
+  buffer: ArrayBuffer,
+) {
+  removeMockBookFile(bookId)
+  const normalizedFormat = format.toUpperCase()
+  store.set(bookId, {
+    buffer,
+    format: normalizedFormat,
+    mime: getMimeForFormat(normalizedFormat),
+    fileName,
+    blobUrl: null,
+  })
+}
+
 export function hasMockBookFile(bookId: string): boolean {
   return store.has(bookId)
 }
