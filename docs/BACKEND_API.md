@@ -1,7 +1,7 @@
 # Sanko Read 后端接口需求文档
 
 > 依据前端 `sanko_read` 整理，供后端实现参考。  
-> 机器可读契约见 [`openapi.yaml`](./openapi.yaml)；精简版见 [`API.md`](./API.md)。
+> 机器可读契约见 [`openapi.yaml`](./openapi.yaml)；精简版见 [`API.md`](./API.md)；**联调步骤见 [`INTEGRATION.md`](./INTEGRATION.md)**。
 
 **版本：** 1.1.0  
 **日期：** 2026-06-25

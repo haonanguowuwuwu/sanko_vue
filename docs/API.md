@@ -13,6 +13,7 @@
 | **后端** | 按本文档实现接口；实现后在 Knife4j `/doc.html` 维护在线文档 |
 | **前端** | 联调时设置 `VITE_USE_MOCK=false`、`VITE_API_BASE_URL=http://localhost:8080` |
 | **协作** | 可导入 [`openapi.yaml`](./openapi.yaml) 到 Apifox / Postman |
+| **联调（关 Mock）** | [`INTEGRATION.md`](./INTEGRATION.md) |
 | **后端完整需求** | [`BACKEND_API.md`](./BACKEND_API.md)（含积分、file-url、书城域） |
 
 **源码对照**
