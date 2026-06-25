@@ -7,24 +7,19 @@ import { USE_MOCK } from '@/api/config'
 import {
   Search,
   Setting,
-  Folder,
   HomeFilled,
   Grid,
-  EditPen,
-  Collection,
-  Delete,
   ArrowUp,
   ArrowDown,
 } from '@element-plus/icons-vue'
 import HeartIcon from '@/components/HeartIcon.vue'
 import HamburgerMenuIcon from '@/components/HamburgerMenuIcon.vue'
 import LoginDialog from '@/components/LoginDialog.vue'
-import ImportProgressDialog from '@/components/ImportProgressDialog.vue'
 import ManageBookshelfDialog from '@/components/ManageBookshelfDialog.vue'
 import IconTooltip from '@/components/IconTooltip.vue'
 import BookSortDropdown from '@/components/BookSortDropdown.vue'
 import AppSettingsDialog from '@/components/AppSettingsDialog.vue'
-import AppBackupDialog from '@/components/AppBackupDialog.vue'
+import AddBookDialog from '@/components/AddBookDialog.vue'
 import SankoLogo from '@/components/SankoLogo.vue'
 import { useUserStore } from '@/stores/user'
 import { useBooksStore } from '@/stores/books'
@@ -44,22 +39,17 @@ const searchKeyword = ref('')
 const isCollapsed = ref(false)
 const bookshelfExpanded = ref(true)
 const showLoginDialog = ref(false)
-const showImportDialog = ref(false)
 const showManageBookshelfDialog = ref(false)
 const showSettingsDialog = ref(false)
-const showBackupDialog = ref(false)
-const pendingImport = ref(false)
+const showAddBookDialog = ref(false)
+const pendingAddBook = ref(false)
 const pendingRedirect = ref<string | null>(null)
-const importFileInput = ref<HTMLInputElement | null>(null)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const menuItems = [
   { path: '/', label: '首页', icon: HomeFilled },
   { path: '/categories', label: '分类', icon: Grid },
   { path: '/favorites', label: '喜欢', icon: HeartIcon },
-  { path: '/notes', label: '笔记', icon: EditPen },
-  { path: '/highlights', label: '高亮', icon: Collection },
-  { path: '/recycle-bin', label: '回收站', icon: Delete },
 ]
 
 const isActive = (path: string) => {
@@ -84,43 +74,21 @@ const openLoginDialog = () => {
   showLoginDialog.value = true
 }
 
-const startImport = async (file?: File) => {
-  showImportDialog.value = true
-  try {
-    await new Promise((resolve) => setTimeout(resolve, file ? 800 : 2000))
-    const book = await booksStore.importBook(file)
-    ElMessage.success(`已导入 ${book.title}`)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '导入失败'
-    ElMessage.error(message)
-  } finally {
-    showImportDialog.value = false
-  }
-}
-
-const handleImportBooks = () => {
+const handleAddBook = () => {
   if (!userStore.isLoggedIn) {
-    ElMessage.warning('请先登录后再导入书籍')
-    pendingImport.value = true
+    ElMessage.warning('请先登录后再添加书籍')
+    pendingAddBook.value = true
     showLoginDialog.value = true
     return
   }
-  importFileInput.value?.click()
-}
-
-const onImportFileSelected = (event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-  void startImport(file)
+  showAddBookDialog.value = true
 }
 
 const handleLoginSuccess = () => {
   ElMessage.success(`欢迎回来，${userStore.username}`)
-  if (pendingImport.value) {
-    pendingImport.value = false
-    handleImportBooks()
+  if (pendingAddBook.value) {
+    pendingAddBook.value = false
+    showAddBookDialog.value = true
     return
   }
   if (pendingRedirect.value) {
@@ -159,7 +127,7 @@ watch(searchKeyword, (value) => {
 
 watch(showLoginDialog, (open) => {
   if (!open && !userStore.isLoggedIn) {
-    pendingImport.value = false
+    pendingAddBook.value = false
     pendingRedirect.value = null
     if (enableSoftwareProtection.value) {
       showLoginDialog.value = true
@@ -238,14 +206,6 @@ onMounted(() => {
             @click="showSettingsDialog = true"
           />
         </IconTooltip>
-        <IconTooltip content="备份">
-          <el-button
-            class="header-icon-btn"
-            :icon="Folder"
-            text
-            @click="showBackupDialog = true"
-          />
-        </IconTooltip>
         <el-button v-if="!userStore.isLoggedIn" class="login-btn" text @click="openLoginDialog">
           登录
         </el-button>
@@ -262,8 +222,8 @@ onMounted(() => {
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button class="import-btn" type="primary" round @click="handleImportBooks">
-          导入书籍
+        <el-button class="import-btn" type="primary" round @click="handleAddBook">
+          添加书籍
         </el-button>
       </div>
     </el-header>
@@ -345,17 +305,9 @@ onMounted(() => {
       :required="enableSoftwareProtection"
       @success="handleLoginSuccess"
     />
-    <ImportProgressDialog v-model:visible="showImportDialog" />
-    <input
-      ref="importFileInput"
-      type="file"
-      accept=".pdf,.epub,.txt,.docx,.mobi,.md"
-      hidden
-      @change="onImportFileSelected"
-    />
     <ManageBookshelfDialog v-model:visible="showManageBookshelfDialog" />
     <AppSettingsDialog v-model:visible="showSettingsDialog" />
-    <AppBackupDialog v-model:visible="showBackupDialog" />
+    <AddBookDialog v-model:visible="showAddBookDialog" />
   </el-container>
 </template>
 

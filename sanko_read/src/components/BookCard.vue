@@ -3,13 +3,12 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
-import { MoreFilled, Reading, Select, Delete, InfoFilled } from '@element-plus/icons-vue'
+import { MoreFilled, Reading, Select, InfoFilled } from '@element-plus/icons-vue'
 import HeartIcon from '@/components/HeartIcon.vue'
 import type { Book } from '@/types/book'
 import { useBooksStore } from '@/stores/books'
 import BookSelectCheckbox from '@/components/BookSelectCheckbox.vue'
 import BookCoverFace from '@/components/BookCoverFace.vue'
-import BookDeleteDialog from '@/components/BookDeleteDialog.vue'
 import BookDetailDialog from '@/components/BookDetailDialog.vue'
 import AddToBookshelfDialog from '@/components/AddToBookshelfDialog.vue'
 
@@ -21,7 +20,6 @@ const router = useRouter()
 const booksStore = useBooksStore()
 const { selectionMode } = storeToRefs(booksStore)
 const menuVisible = ref(false)
-const showDeleteDialog = ref(false)
 const showDetailDialog = ref(false)
 const showAddToShelfDialog = ref(false)
 
@@ -71,24 +69,10 @@ const handleCommand = (command: string) => {
     case 'multi':
       booksStore.enterSelectionMode(props.book.id)
       break
-    case 'delete':
-      if (booksStore.isRecycleBinEnabled()) {
-        void booksStore.moveToRecycleBin(props.book.id).then(() => {
-          ElMessage.success('已移入回收站')
-        })
-      } else {
-        showDeleteDialog.value = true
-      }
-      break
     case 'info':
       showDetailDialog.value = true
       break
   }
-}
-
-const confirmDelete = async () => {
-  await booksStore.removeBook(props.book.id)
-  ElMessage.success('已删除书籍')
 }
 
 const onAddToShelfSuccess = ({ shelfCount }: { shelfCount: number }) => {
@@ -148,14 +132,12 @@ const onAddToShelfSuccess = ({ shelfCount }: { shelfCount: number }) => {
             </el-dropdown-item>
             <el-dropdown-item command="bookshelf" :icon="Reading">添加到书架</el-dropdown-item>
             <el-dropdown-item command="multi" :icon="Select">多选</el-dropdown-item>
-            <el-dropdown-item command="delete" :icon="Delete">删除</el-dropdown-item>
             <el-dropdown-item command="info" :icon="InfoFilled">详细信息</el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
     </div>
 
-    <BookDeleteDialog v-model:visible="showDeleteDialog" @confirm="confirmDelete" />
     <BookDetailDialog v-model:visible="showDetailDialog" :book="book" />
     <AddToBookshelfDialog
       v-model:visible="showAddToShelfDialog"

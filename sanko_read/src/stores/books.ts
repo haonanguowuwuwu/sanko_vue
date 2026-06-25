@@ -163,6 +163,21 @@ export const useBooksStore = defineStore('books', () => {
     selectedIds.value.delete(id)
   }
 
+  async function createBookEntry(payload: booksApi.CreateBookEntryPayload) {
+    const book = await booksApi.createBookEntry(payload)
+    books.value.push(book)
+    return book
+  }
+
+  async function uploadBookFile(bookId: string, file: File) {
+    const updated = await booksApi.uploadBookFile(bookId, file)
+    const index = books.value.findIndex((b) => b.id === bookId)
+    if (index !== -1) {
+      books.value[index] = updated
+    }
+    return updated
+  }
+
   async function importBook(file?: File) {
     const book = await booksApi.importBook(file)
     books.value.push(book)
@@ -373,6 +388,8 @@ export const useBooksStore = defineStore('books', () => {
     touchLastRead,
     updateProgress,
     isRecycleBinEnabled,
+    createBookEntry,
+    uploadBookFile,
     importBook,
     importNextSampleBook,
     moveToRecycleBin,

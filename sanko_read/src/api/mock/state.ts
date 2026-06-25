@@ -164,6 +164,44 @@ export function mockImportSampleBook(): Book | null {
   return book
 }
 
+export interface CreateBookEntryPayload {
+  title: string
+  author: string
+  category: string
+}
+
+export function mockCreateBookEntry(payload: CreateBookEntryPayload): Book {
+  const coverTitle = payload.title.replace(/^《|》$/g, '')
+  const book: Book = {
+    id: `book-${bookIdCounter++}`,
+    title: payload.title.startsWith('《') ? payload.title : `《${payload.title}》`,
+    author: payload.author,
+    progress: 0,
+    coverColor: '#5a7a6a',
+    coverTitle,
+    fileSize: '—',
+    format: '—',
+    addedAt: formatAddedDate(),
+    category: payload.category,
+  }
+  mockState.books.push(book)
+  return book
+}
+
+export function mockUploadBookFile(bookId: string, file: File): Book {
+  const book = mockState.books.find((b) => b.id === bookId)
+  if (!book) throw new Error('书籍不存在')
+
+  const format = parseFormatFromFileName(file.name)
+  if (!format) {
+    throw new Error(`暂不支持该文件格式：.${file.name.split('.').pop() ?? ''}`)
+  }
+
+  book.fileSize = formatFileSize(file.size)
+  book.format = format
+  return book
+}
+
 export function mockImportFromFile(file: File): Book {
   const format = parseFormatFromFileName(file.name)
   if (!format) {

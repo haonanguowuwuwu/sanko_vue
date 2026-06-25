@@ -3,7 +3,6 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { useBooksStore } from '@/stores/books'
-import BookDeleteDialog from '@/components/BookDeleteDialog.vue'
 import AddToBookshelfDialog from '@/components/AddToBookshelfDialog.vue'
 
 const props = defineProps<{
@@ -12,7 +11,6 @@ const props = defineProps<{
 
 const booksStore = useBooksStore()
 const { allSelectedFavorited, selectedCount, selectedIds } = storeToRefs(booksStore)
-const showDeleteDialog = ref(false)
 const showAddToShelfDialog = ref(false)
 
 const selectedBookIds = computed(() => [...selectedIds.value])
@@ -55,26 +53,6 @@ const onAddToShelfSuccess = (_payload: { shelfCount: number }) => {
   booksStore.exitSelectionMode()
 }
 
-const handleDelete = () => {
-  if (selectedCount.value === 0) {
-    ElMessage.warning('请先选择书籍')
-    return
-  }
-  if (booksStore.isRecycleBinEnabled()) {
-    void booksStore.moveSelectedToRecycleBin().then(() => {
-      ElMessage.success(`已将 ${selectedCount.value} 本书移入回收站`)
-    })
-  } else {
-    showDeleteDialog.value = true
-  }
-}
-
-const confirmDelete = async () => {
-  const count = selectedCount.value
-  await booksStore.removeSelected()
-  ElMessage.success(count === 1 ? '已删除书籍' : `已删除 ${count} 本书籍`)
-}
-
 const handleSelectAll = () => {
   booksStore.selectAllFromList(props.bookIds)
 }
@@ -87,13 +65,11 @@ const handleSelectAll = () => {
     </button>
     <button type="button" class="multi-select-bar__btn" @click="handleFavorite">{{ favoriteLabel }}</button>
     <button type="button" class="multi-select-bar__btn" @click="handleBookshelf">添加到书架</button>
-    <button type="button" class="multi-select-bar__btn" @click="handleDelete">删除</button>
     <button type="button" class="multi-select-bar__btn" @click="handleSelectAll">
       {{ isAllSelectedInScope ? '取消全选' : '全选' }}
     </button>
   </div>
 
-  <BookDeleteDialog v-model:visible="showDeleteDialog" append-to-body @confirm="confirmDelete" />
   <AddToBookshelfDialog
     v-model:visible="showAddToShelfDialog"
     :book-ids="selectedBookIds"

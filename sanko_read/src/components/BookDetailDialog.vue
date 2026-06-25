@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import type { Book } from '@/types/book'
+import { useBooksStore } from '@/stores/books'
 import BookCoverFace from '@/components/BookCoverFace.vue'
 
-defineProps<{
+const props = defineProps<{
   visible: boolean
   book: Book | null
 }>()
@@ -11,8 +14,36 @@ const emit = defineEmits<{
   'update:visible': [value: boolean]
 }>()
 
+const booksStore = useBooksStore()
+const uploading = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+const hasFile = computed(() => props.book && props.book.format !== '—')
+
 const handleClose = () => {
   emit('update:visible', false)
+}
+
+const handlePickFile = () => {
+  fileInputRef.value?.click()
+}
+
+const onFileSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !props.book) return
+
+  uploading.value = true
+  try {
+    await booksStore.uploadBookFile(props.book.id, file)
+    ElMessage.success('书籍文件已上传')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '上传失败'
+    ElMessage.error(message)
+  } finally {
+    uploading.value = false
+  }
 }
 </script>
 
@@ -48,6 +79,18 @@ const handleClose = () => {
           <span class="detail-dialog__meta-label">格式</span>
           <span class="detail-dialog__meta-value">{{ book.format }}</span>
         </div>
+      </div>
+
+      <div v-if="!hasFile" class="detail-dialog__upload">
+        <p class="detail-dialog__upload-hint">尚未上传书籍文件</p>
+        <el-button type="primary" :loading="uploading" @click="handlePickFile">上传书籍文件</el-button>
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept=".pdf,.epub,.txt,.docx,.mobi,.md"
+          hidden
+          @change="onFileSelected"
+        />
       </div>
 
       <button type="button" class="detail-dialog__close" @click="handleClose">关闭</button>
@@ -105,6 +148,20 @@ const handleClose = () => {
   font-size: 15px;
   font-weight: 600;
   color: var(--sanko-text);
+}
+
+.detail-dialog__upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.detail-dialog__upload-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--sanko-text-secondary);
 }
 
 .detail-dialog__close {

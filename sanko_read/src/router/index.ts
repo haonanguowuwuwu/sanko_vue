@@ -41,26 +41,6 @@ const router = createRouter({
           component: () => import('@/views/FavoritesView.vue'),
         },
         {
-          path: 'notes',
-          name: 'notes',
-          component: () => import('@/views/NotesView.vue'),
-        },
-        {
-          path: 'highlights',
-          name: 'highlights',
-          component: () => import('@/views/HighlightsView.vue'),
-        },
-        {
-          path: 'recycle-bin',
-          name: 'recycle-bin',
-          component: () => import('@/views/RecycleBinView.vue'),
-        },
-        {
-          path: 'chat',
-          name: 'chat',
-          component: () => import('@/views/ChatView.vue'),
-        },
-        {
           path: 'shelf/:shelfId',
           name: 'shelf',
           component: () => import('@/views/ShelfView.vue'),

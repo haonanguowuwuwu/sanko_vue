@@ -4,11 +4,14 @@ import type { Book } from '@/types/book'
 import { formatAddedDate } from '@/types/book'
 import {
   mockDelay,
+  mockCreateBookEntry,
   mockImportFromFile,
   mockImportSampleBook,
   mockRemoveBookFile,
   mockState,
   mockStoreImportedFile,
+  mockUploadBookFile,
+  type CreateBookEntryPayload,
 } from '@/api/mock/state'
 import { mockGetBookFileUrl as resolveMockBookFileUrl, getMockBookBuffer, formatFileSize } from '@/api/mock/fileStore'
 import { buildMockSampleBookFileUrl, mockAttachSampleFile } from '@/api/mock/sampleBooks'
@@ -77,6 +80,26 @@ export async function getBook(id: string): Promise<Book | null> {
   } catch {
     return null
   }
+}
+
+export type { CreateBookEntryPayload }
+
+export async function createBookEntry(payload: CreateBookEntryPayload): Promise<Book> {
+  if (USE_MOCK) {
+    return mockDelay(mockCreateBookEntry(payload))
+  }
+  return request<Book>('/api/books', { method: 'POST', body: payload })
+}
+
+export async function uploadBookFile(bookId: string, file: File): Promise<Book> {
+  if (USE_MOCK) {
+    const book = mockUploadBookFile(bookId, file)
+    await mockStoreImportedFile(bookId, file)
+    return mockDelay(book)
+  }
+  const form = new FormData()
+  form.append('file', file)
+  return request<Book>(`/api/books/${bookId}/file`, { method: 'POST', body: form })
 }
 
 export async function importBook(file?: File): Promise<Book> {
