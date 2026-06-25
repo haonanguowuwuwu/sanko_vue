@@ -2,6 +2,7 @@
 import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import type { Book } from '@/types/book'
 import { loadBookBuffer } from '@/reader/bookLoader'
+import { normalizeReaderLoadError } from '@/reader/readerLoadErrors'
 import { useKookitRendition, type ReaderChapterItem } from '@/reader/useKookitRendition'
 import { configService } from '@/reader/configService'
 import { isPdfFormat } from '@/reader/readerSettings'
@@ -50,6 +51,7 @@ const {
   getCurrentSpreadIndex,
   applyReaderStyles,
   applyStoredHighlights,
+  removePdfHighlight,
   clearTextSelection,
   refreshPendingSelectionRange,
 } = useKookitRendition(pageAreaRef, renditionOptions)
@@ -67,7 +69,7 @@ let loadSeq = 0
 async function loadBook() {
   const seq = ++loadSeq
   try {
-    const buffer = await loadBookBuffer(props.bookId)
+    const buffer = await loadBookBuffer(props.bookId, props.book.format)
     if (seq !== loadSeq) return
     await open(buffer)
     if (seq !== loadSeq) return
@@ -84,7 +86,7 @@ async function loadBook() {
     emit('spread-index', getCurrentSpreadIndex())
   } catch (e) {
     if (seq !== loadSeq) return
-    const message = e instanceof Error ? e.message : '加载失败'
+    const message = normalizeReaderLoadError(e, props.book.format)
     emit('error', message)
   }
 }
@@ -133,6 +135,7 @@ defineExpose({
   getCurrentSpreadIndex,
   applyReaderStyles: refreshReaderStyles,
   applyStoredHighlights,
+  removePdfHighlight,
   clearTextSelection,
   refreshPendingSelectionRange,
   reloadBook,

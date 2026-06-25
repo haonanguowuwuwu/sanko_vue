@@ -5,6 +5,7 @@ import { DEFAULT_BOOKSHELVES } from '@/types/bookshelf'
 import type { ReaderBookmark, ReaderHighlight, ReaderSpread } from '@/types/reader'
 import { READER_SPREADS } from '@/data/readerContent'
 import type { AppSettingsDto } from '@/api/types'
+import type { PointsOrder, PointsSummary } from '@/types/profile'
 import { formatAnnotationTime } from '@/utils/readerMeta'
 import {
   clearMockBookFiles,
@@ -42,6 +43,103 @@ export const mockState = {
     showBookshelfBookCount: true,
     enableSoftwareProtection: false,
   } as AppSettingsDto,
+  pointsSummary: {
+    balance: 12580,
+    totalEarned: 5260,
+    totalUsed: 4560,
+  } as PointsSummary,
+  pointsOrders: [
+    {
+      id: 'ORD20260625001',
+      time: '2026-06-25 14:30:00',
+      type: 'recharge',
+      change: 500,
+      balance: 12580,
+      description: '积分充值-支付宝',
+      status: 'completed',
+    },
+    {
+      id: 'ORD20260624002',
+      time: '2026-06-24 10:15:00',
+      type: 'use',
+      change: -200,
+      balance: 12080,
+      description: '购买《三体》电子书',
+      status: 'completed',
+    },
+    {
+      id: 'ORD20260623003',
+      time: '2026-06-23 08:00:00',
+      type: 'earn',
+      change: 30,
+      balance: 12280,
+      description: '每日签到奖励',
+      status: 'completed',
+    },
+    {
+      id: 'ORD20260622004',
+      time: '2026-06-22 16:45:00',
+      type: 'use',
+      change: -100,
+      balance: 12250,
+      description: '购买《斗破苍穹》电子书',
+      status: 'completed',
+    },
+    {
+      id: 'ORD20260621005',
+      time: '2026-06-21 09:20:00',
+      type: 'recharge',
+      change: 1000,
+      balance: 12350,
+      description: '积分充值-微信',
+      status: 'completed',
+    },
+    {
+      id: 'ORD20260620006',
+      time: '2026-06-20 12:00:00',
+      type: 'earn',
+      change: 50,
+      balance: 11350,
+      description: '完成阅读任务奖励',
+      status: 'completed',
+    },
+    {
+      id: 'ORD20260619007',
+      time: '2026-06-19 18:30:00',
+      type: 'use',
+      change: -150,
+      balance: 11300,
+      description: '购买《Python编程》电子书',
+      status: 'completed',
+    },
+    {
+      id: 'ORD20260618008',
+      time: '2026-06-18 07:00:00',
+      type: 'earn',
+      change: 30,
+      balance: 11450,
+      description: '每日签到奖励',
+      status: 'completed',
+    },
+    {
+      id: 'ORD20260617009',
+      time: '2026-06-17 15:10:00',
+      type: 'recharge',
+      change: 300,
+      balance: 11420,
+      description: '积分充值-支付宝',
+      status: 'completed',
+    },
+    {
+      id: 'ORD20260616010',
+      time: '2026-06-16 11:00:00',
+      type: 'use',
+      change: -80,
+      balance: 11120,
+      description: '购买《高等数学》电子书',
+      status: 'completed',
+    },
+  ] as PointsOrder[],
 }
 
 export function mockDelay<T>(value: T, ms = 120): Promise<T> {

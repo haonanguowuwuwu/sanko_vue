@@ -6,6 +6,7 @@ import type { ReaderChapterItem } from '@/reader/useKookitRendition'
 import type { ReaderBookmark, ReaderHighlight } from '@/types/reader'
 import BookCoverFace from '@/components/BookCoverFace.vue'
 import { SPREAD_PAGE_STRIDE } from '@/reader/spreadIndex'
+import { resolveAnnotationSpreadIndex } from '@/reader/highlightUtils'
 
 type NavTab = 'toc' | 'bookmarks' | 'notes' | 'highlights'
 
@@ -85,7 +86,7 @@ function navigateChapter(index: number) {
 }
 
 function navigateFromAnnotation(item: ReaderHighlight) {
-  emit('navigate-chapter', item.spreadIndex)
+  emit('navigate-chapter', resolveAnnotationSpreadIndex(item))
 }
 
 const highlightColorClass = (color: string) => `reader-nav__hl--${color}`

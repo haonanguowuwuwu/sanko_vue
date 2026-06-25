@@ -14,6 +14,7 @@ import ReaderSelectionToolbar from '@/components/reader/ReaderSelectionToolbar.v
 import ReaderNoteDialog from '@/components/reader/ReaderNoteDialog.vue'
 import type { ReaderChapterItem } from '@/reader/useKookitRendition'
 import type { TextSelectionPayload } from '@/reader/highlightUtils'
+import { getPdfPageIndexFromHighlight } from '@/reader/highlightUtils'
 import type { HighlightColor } from '@/types/reader'
 import { configService } from '@/reader/configService'
 import { isPdfFormat, supportsAnnotationHighlight } from '@/reader/readerSettings'
@@ -136,6 +137,18 @@ async function resolveSelectionRange(): Promise<string> {
   return ''
 }
 
+async function refreshHighlightsAfterChange(options?: {
+  pageIndex?: number | null
+  removedHighlightId?: string
+}) {
+  const pageIndex = options?.pageIndex ?? null
+  if (isPdfBook.value && options?.removedHighlightId && pageIndex != null) {
+    await readerHostRef.value?.removePdfHighlight(options.removedHighlightId, pageIndex)
+    return
+  }
+  await readerHostRef.value?.applyStoredHighlights(pageIndex != null ? [pageIndex] : [])
+}
+
 async function onHighlightColor(color: HighlightColor) {
   const selection = pendingSelection.value
   if (!selection) return
@@ -146,6 +159,11 @@ async function onHighlightColor(color: HighlightColor) {
     return
   }
 
+  const pageIndex = getPdfPageIndexFromHighlight({
+    range,
+    chapterDocIndex: selection.chapterDocIndex,
+  })
+
   const result = await annotationsStore.toggleKookitHighlight(bookId.value, {
     range,
     spreadIndex: selection.spreadIndex,
@@ -155,7 +173,7 @@ async function onHighlightColor(color: HighlightColor) {
     color,
   })
 
-  await readerHostRef.value?.applyStoredHighlights()
+  await refreshHighlightsAfterChange({ pageIndex })
   hideSelectionToolbar()
 
   if (result === 'added') {
@@ -212,7 +230,12 @@ async function onNoteConfirm(payload: {
     })
   }
 
-  await readerHostRef.value?.applyStoredHighlights()
+  await refreshHighlightsAfterChange({
+    pageIndex: getPdfPageIndexFromHighlight({
+      range,
+      chapterDocIndex: selection.chapterDocIndex,
+    }) ?? selection.chapterDocIndex,
+  })
   hideSelectionToolbar()
   showNoteDialog.value = false
   ElMessage.success('笔记已保存')
@@ -230,15 +253,24 @@ async function onSelectionDelete() {
   if (!existing) return
 
   const hadNote = Boolean(existing.note?.trim())
+  const pageIndex = getPdfPageIndexFromHighlight(existing) ?? getPdfPageIndexFromHighlight(selection)
   await annotationsStore.removeHighlight(existing.id)
-  await readerHostRef.value?.applyStoredHighlights()
+  await refreshHighlightsAfterChange({
+    pageIndex,
+    removedHighlightId: existing.id,
+  })
   hideSelectionToolbar()
   ElMessage.success(hadNote ? '笔记已删除' : '已删除高亮')
 }
 
 async function onNoteDelete(id: string) {
+  const existing = annotationsStore.highlights.find((h) => h.id === id)
+  const pageIndex = existing ? getPdfPageIndexFromHighlight(existing) : null
   await annotationsStore.removeHighlight(id)
-  await readerHostRef.value?.applyStoredHighlights()
+  await refreshHighlightsAfterChange({
+    pageIndex,
+    removedHighlightId: id,
+  })
   hideSelectionToolbar()
   showNoteDialog.value = false
   editingNoteId.value = undefined
@@ -299,6 +331,7 @@ async function onNavigateChapter(index: number) {
   await readerHostRef.value?.goToSpreadIndex(index)
   syncActiveSpreadIndex()
   syncActiveChapterIndex()
+  await readerHostRef.value?.applyStoredHighlights()
   showMenuPanel.value = false
 }
 
@@ -324,7 +357,15 @@ const onReaderReady = async () => {
 const onReaderError = (message: string) => {
   contentLoading.value = false
   loadError.value = message
-  ElMessage.error(message)
+  ElMessage({
+    type: 'error',
+    message,
+    duration: 4000,
+    showClose: true,
+  })
+  window.setTimeout(() => {
+    exitReader(router, route)
+  }, 3200)
 }
 
 const onProgress = (percent: number) => {
@@ -438,6 +479,7 @@ onMounted(() => {
       :visible="selectionToolbar.visible"
       :x="selectionToolbar.x"
       :y="selectionToolbar.y"
+      :placement="isPdfBook ? 'left' : 'above'"
       :show-delete="selectionHasAnnotation"
       @highlight="onHighlightColor"
       @note="openNoteDialog"

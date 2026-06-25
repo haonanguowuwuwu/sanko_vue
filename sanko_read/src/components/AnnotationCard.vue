@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { EditPen, ArrowRight } from '@element-plus/icons-vue'
 import type { ReaderHighlight } from '@/types/reader'
 import { useBooksStore } from '@/stores/books'
+import { openReader } from '@/utils/readerNavigation'
+import { resolveAnnotationSpreadIndex } from '@/reader/highlightUtils'
 
 const props = defineProps<{
   item: ReaderHighlight
   mode: 'note' | 'highlight'
 }>()
 
+const emit = defineEmits<{
+  edit: [item: ReaderHighlight]
+}>()
+
 const router = useRouter()
+const route = useRoute()
 const booksStore = useBooksStore()
 
 const bookTitle = computed(() => {
@@ -20,8 +27,14 @@ const bookTitle = computed(() => {
 
 const sourceLabel = computed(() => `来自 ${bookTitle.value} ${props.item.chapter}`)
 
-const goToReader = () => {
-  router.push({ name: 'reader', params: { id: props.item.bookId } })
+const goToSource = () => {
+  openReader(router, route, props.item.bookId, {
+    spreadIndex: resolveAnnotationSpreadIndex(props.item),
+  })
+}
+
+const handleEdit = () => {
+  emit('edit', props.item)
 }
 </script>
 
@@ -44,9 +57,17 @@ const goToReader = () => {
           text
           circle
           class="annotation-card__action"
-          @click="goToReader"
+          title="编辑笔记"
+          @click="handleEdit"
         />
-        <el-button :icon="ArrowRight" text circle class="annotation-card__action" @click="goToReader" />
+        <el-button
+          :icon="ArrowRight"
+          text
+          circle
+          class="annotation-card__action"
+          title="跳转到原文"
+          @click="goToSource"
+        />
       </div>
     </footer>
   </article>

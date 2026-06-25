@@ -1,116 +1,26 @@
 <script setup lang="ts">
-interface HomeBook {
-  id: string
-  title: string
-  author: string
-  coverColor: string
-  coverTitle: string
-  description?: string
+import { useRouter } from 'vue-router'
+import { featuredBooks, rankSections } from '@/data/catalogBooks'
+
+const router = useRouter()
+
+const openBook = (id: string) => {
+  router.push({ name: 'book-intro', params: { id } })
 }
-
-interface RankSection {
-  title: string
-  highlight: HomeBook
-  items: HomeBook[]
-}
-
-const featuredBooks: HomeBook[] = [
-  {
-    id: 'f1',
-    title: '书籍1',
-    author: '作者1',
-    coverColor: '#c45c26',
-    coverTitle: '书籍1',
-  },
-  {
-    id: 'f2',
-    title: '书籍2',
-    author: '作者2',
-    coverColor: '#1a5fb4',
-    coverTitle: '书籍2',
-  },
-  {
-    id: 'f3',
-    title: '书籍3',
-    author: '作者3',
-    coverColor: '#2d8659',
-    coverTitle: '书籍3',
-  },
-  {
-    id: 'f4',
-    title: '书籍4',
-    author: '作者4',
-    coverColor: '#6b3fa0',
-    coverTitle: '书籍4',
-  },
-  {
-    id: 'f5',
-    title: '书籍5',
-    author: '作者5',
-    coverColor: '#b83232',
-    coverTitle: '书籍5',
-  },
-]
-
-const rankSections: RankSection[] = [
-  {
-    title: '新书榜',
-    highlight: {
-      id: 'n0',
-      title: '三体',
-      author: '刘慈欣',
-      coverColor: '#1c2833',
-      coverTitle: '三体',
-      description: '地球文明向宇宙发出第一声啼鸣，取得了探寻外星文明的突破性进展…',
-    },
-    items: [
-      { id: 'n1', title: '诡秘之主', author: '爱潜水的乌贼', coverColor: '#2c3e50', coverTitle: '诡秘' },
-      { id: 'n2', title: '大奉打更人', author: '卖报小郎君', coverColor: '#8b4513', coverTitle: '打更' },
-      { id: 'n3', title: '道诡异仙', author: '狐尾的笔', coverColor: '#4a235a', coverTitle: '道诡' },
-      { id: 'n4', title: '灵境行者', author: '卖报小郎君', coverColor: '#1a5276', coverTitle: '灵境' },
-    ],
-  },
-  {
-    title: '完结榜',
-    highlight: {
-      id: 'c0',
-      title: '斗破苍穹',
-      author: '天蚕土豆',
-      coverColor: '#922b21',
-      coverTitle: '斗破',
-      description: '这里是属于斗气的世界，没有花俏的魔法，有的，仅仅是繁衍到巅峰的斗气。',
-    },
-    items: [
-      { id: 'c1', title: '全职高手', author: '蝴蝶蓝', coverColor: '#117a65', coverTitle: '全职' },
-      { id: 'c2', title: '庆余年', author: '猫腻', coverColor: '#7d6608', coverTitle: '庆余' },
-      { id: 'c3', title: '择天记', author: '猫腻', coverColor: '#1f618d', coverTitle: '择天' },
-      { id: 'c4', title: '将夜', author: '猫腻', coverColor: '#566573', coverTitle: '将夜' },
-    ],
-  },
-  {
-    title: '更多精彩',
-    highlight: {
-      id: 'm0',
-      title: '解忧杂货店',
-      author: '东野圭吾',
-      coverColor: '#8b4513',
-      coverTitle: '解忧',
-      description: '僻静的街道旁有一家杂货店，只要写下烦恼投进店前门卷帘门的投信口…',
-    },
-    items: [
-      { id: 'm1', title: '挪威的森林', author: '村上春树', coverColor: '#196f3d', coverTitle: '挪威' },
-      { id: 'm2', title: '百年孤独', author: '马尔克斯', coverColor: '#784212', coverTitle: '百年' },
-      { id: 'm3', title: '活着', author: '余华', coverColor: '#7b241c', coverTitle: '活着' },
-      { id: 'm4', title: '围城', author: '钱钟书', coverColor: '#512e5f', coverTitle: '围城' },
-    ],
-  },
-]
 </script>
 
 <template>
   <div class="home-page">
     <section class="home-featured">
-      <article v-for="book in featuredBooks" :key="book.id" class="home-featured__item">
+      <article
+        v-for="book in featuredBooks"
+        :key="book.id"
+        class="home-featured__item home-book-link"
+        role="link"
+        tabindex="0"
+        @click="openBook(book.id)"
+        @keydown.enter="openBook(book.id)"
+      >
         <div class="home-cover home-cover--featured" :style="{ background: book.coverColor }">
           <span class="home-cover__title">{{ book.coverTitle }}</span>
         </div>
@@ -123,7 +33,13 @@ const rankSections: RankSection[] = [
       <div v-for="section in rankSections" :key="section.title" class="home-rank">
         <h2 class="home-rank__heading">{{ section.title }}</h2>
 
-        <article class="home-rank__highlight">
+        <article
+          class="home-rank__highlight home-book-link"
+          role="link"
+          tabindex="0"
+          @click="openBook(section.highlight.id)"
+          @keydown.enter="openBook(section.highlight.id)"
+        >
           <div
             class="home-cover home-cover--rank"
             :style="{ background: section.highlight.coverColor }"
@@ -139,7 +55,15 @@ const rankSections: RankSection[] = [
         </article>
 
         <ul class="home-rank__list">
-          <li v-for="(item, index) in section.items" :key="item.id" class="home-rank__row">
+          <li
+            v-for="(item, index) in section.items"
+            :key="item.id"
+            class="home-rank__row home-book-link"
+            role="link"
+            tabindex="0"
+            @click="openBook(item.id)"
+            @keydown.enter="openBook(item.id)"
+          >
             <div
               class="home-cover home-cover--thumb"
               :style="{ background: item.coverColor }"
@@ -182,6 +106,15 @@ const rankSections: RankSection[] = [
   flex-direction: column;
   align-items: center;
   width: 96px;
+}
+
+.home-book-link {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.home-book-link:hover {
+  opacity: 0.85;
 }
 
 .home-featured__title {

@@ -1,7 +1,11 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { HighlightColor, ReaderBookmark, ReaderHighlight } from '@/types/reader'
-import { kookitBlockId } from '@/reader/highlightUtils'
+import {
+  kookitBlockId,
+  parsePdfHighlightRange,
+  resolveKookitAnnotationLocation,
+} from '@/reader/highlightUtils'
 import { formatAnnotationTime } from '@/utils/readerMeta'
 import * as annotationsApi from '@/api/annotations'
 
@@ -24,12 +28,24 @@ export const useReaderAnnotationsStore = defineStore('readerAnnotations', () => 
   )
 
   function dedupeHighlightOnly() {
+    const notedRangeKeys = new Set(
+      highlights.value
+        .filter((h) => h.note?.trim() && h.range)
+        .map((h) => `${h.bookId}|${h.range}`),
+    )
+    const notedQuoteKeys = new Set(
+      highlights.value
+        .filter((h) => h.note?.trim())
+        .map((h) => `${h.bookId}|${h.quote.trim()}`),
+    )
     const seen = new Set<string>()
     highlights.value = highlights.value.filter((h) => {
       if (h.note?.trim()) return true
       const key = h.range
         ? `${h.bookId}|${h.range}`
         : `${h.bookId}|${h.blockId}|${h.quote.trim()}`
+      if (h.range && notedRangeKeys.has(`${h.bookId}|${h.range}`)) return false
+      if (notedQuoteKeys.has(`${h.bookId}|${h.quote.trim()}`)) return false
       if (seen.has(key)) return false
       seen.add(key)
       return true
@@ -74,6 +90,19 @@ export const useReaderAnnotationsStore = defineStore('readerAnnotations', () => 
     )
   }
 
+  function getPdfHighlightsForPage(bookId: string, pageIndex: number) {
+    return highlights.value.filter((item) => {
+      if (item.bookId !== bookId || !item.range?.trim()) return false
+      const parsed = parsePdfHighlightRange(item.range)
+      if (parsed) return parsed.page === pageIndex
+      return item.chapterDocIndex === pageIndex
+    })
+  }
+
+  function resolveKookitPdfPageIndex(range: string, chapterDocIndex: number): number {
+    return parsePdfHighlightRange(range)?.page ?? chapterDocIndex
+  }
+
   function getHighlightsForBlock(bookId: string, blockId: string) {
     return getHighlightsForBook(bookId).filter((h) => h.blockId === blockId)
   }
@@ -105,8 +134,9 @@ export const useReaderAnnotationsStore = defineStore('readerAnnotations', () => 
     },
   ): Promise<'added' | 'removed' | 'updated'> {
     const { range, spreadIndex, chapterDocIndex, quote, chapter, color } = payload
-    const blockId = kookitBlockId(chapterDocIndex)
-    const existing = findPlainKookitHighlight(bookId, range, quote)
+    const location = resolveKookitAnnotationLocation(range, spreadIndex, chapterDocIndex)
+    const blockId = kookitBlockId(location.chapterDocIndex)
+    const existing = findKookitAnnotation(bookId, range, quote)
 
     if (existing) {
       if (existing.color === color) {
@@ -117,9 +147,9 @@ export const useReaderAnnotationsStore = defineStore('readerAnnotations', () => 
         color,
         quote,
         chapter,
-        spreadIndex,
+        spreadIndex: location.spreadIndex,
         range,
-        chapterDocIndex,
+        chapterDocIndex: location.chapterDocIndex,
       })
       Object.assign(existing, updated)
       return 'updated'
@@ -128,14 +158,14 @@ export const useReaderAnnotationsStore = defineStore('readerAnnotations', () => 
     const highlight = await annotationsApi.createAnnotation({
       bookId,
       blockId,
-      spreadIndex,
+      spreadIndex: location.spreadIndex,
       start: 0,
       end: quote.length,
       color,
       quote,
       chapter,
       range,
-      chapterDocIndex,
+      chapterDocIndex: location.chapterDocIndex,
     })
     highlights.value.push(highlight)
     return 'added'
@@ -154,47 +184,32 @@ export const useReaderAnnotationsStore = defineStore('readerAnnotations', () => 
     },
   ) {
     const { range, spreadIndex, chapterDocIndex, quote, chapter, color, note } = payload
-    const blockId = kookitBlockId(chapterDocIndex)
+    const location = resolveKookitAnnotationLocation(range, spreadIndex, chapterDocIndex)
+    const blockId = kookitBlockId(location.chapterDocIndex)
     const trimmedNote = note.trim()
-
-    const existing = highlights.value.find(
-      (h) => h.bookId === bookId && h.range === range,
-    )
+    const existing = findKookitAnnotation(bookId, range, quote)
 
     if (existing) {
       const updated = await annotationsApi.updateAnnotation(existing.id, {
         color,
         quote,
         chapter,
-        spreadIndex,
+        spreadIndex: location.spreadIndex,
         range,
-        chapterDocIndex,
+        chapterDocIndex: location.chapterDocIndex,
         note: trimmedNote,
       })
       Object.assign(existing, updated)
+      existing.note = trimmedNote
+      existing.createdAt = formatAnnotationTime()
+      dedupeHighlightOnly()
       return existing
-    }
-
-    const plainDup = findPlainKookitHighlight(bookId, range, quote)
-    if (plainDup) {
-      const updated = await annotationsApi.updateAnnotation(plainDup.id, {
-        note: trimmedNote,
-        color,
-        quote,
-        chapter,
-        spreadIndex,
-        range,
-        chapterDocIndex,
-      })
-      Object.assign(plainDup, updated)
-      plainDup.createdAt = formatAnnotationTime()
-      return plainDup
     }
 
     const highlight = await annotationsApi.createAnnotation({
       bookId,
       blockId,
-      spreadIndex,
+      spreadIndex: location.spreadIndex,
       start: 0,
       end: quote.length,
       color,
@@ -202,9 +217,10 @@ export const useReaderAnnotationsStore = defineStore('readerAnnotations', () => 
       chapter,
       note: trimmedNote,
       range,
-      chapterDocIndex,
+      chapterDocIndex: location.chapterDocIndex,
     })
     highlights.value.push(highlight)
+    dedupeHighlightOnly()
     return highlight
   }
 
@@ -365,10 +381,12 @@ export const useReaderAnnotationsStore = defineStore('readerAnnotations', () => 
   async function updateNote(id: string, note: string, color?: HighlightColor) {
     const item = highlights.value.find((h) => h.id === id)
     if (!item) return
-    const payload: { note: string; color?: HighlightColor } = { note: note.trim() }
+    const trimmedNote = note.trim()
+    const payload: { note: string; color?: HighlightColor } = { note: trimmedNote }
     if (color) payload.color = color
     const updated = await annotationsApi.updateAnnotation(id, payload)
     Object.assign(item, updated)
+    item.note = trimmedNote
   }
 
   function findKookitAnnotation(bookId: string, range: string, quote: string) {
@@ -424,6 +442,7 @@ export const useReaderAnnotationsStore = defineStore('readerAnnotations', () => 
     fetchAll,
     getHighlightsForBook,
     getHighlightsForChapter,
+    getPdfHighlightsForPage,
     getBookmarksForBook,
     getHighlightsForBlock,
     addHighlight,

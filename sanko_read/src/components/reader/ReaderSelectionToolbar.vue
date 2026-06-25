@@ -3,12 +3,16 @@ import { EditPen, Notebook, Delete } from '@element-plus/icons-vue'
 import type { HighlightColor } from '@/types/reader'
 import { HIGHLIGHT_COLOR_IDS, getHighlightColorDef } from '@/reader/highlightColors'
 
-defineProps<{
-  visible: boolean
-  x: number
-  y: number
-  showDelete?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    visible: boolean
+    x: number
+    y: number
+    showDelete?: boolean
+    placement?: 'above' | 'left'
+  }>(),
+  { placement: 'above' },
+)
 
 const emit = defineEmits<{
   highlight: [color: HighlightColor]
@@ -28,6 +32,7 @@ function swatchStyle(color: HighlightColor) {
   <div
     v-if="visible"
     class="selection-toolbar"
+    :class="{ 'selection-toolbar--left': props.placement === 'left' }"
     :style="{ left: `${x}px`, top: `${y}px` }"
     @mousedown.prevent
   >
@@ -75,6 +80,10 @@ function swatchStyle(color: HighlightColor) {
   border-radius: 10px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   transform: translate(-50%, -100%) translateY(-8px);
+}
+
+.selection-toolbar--left {
+  transform: translate(0, -50%);
 }
 
 .selection-toolbar__actions {

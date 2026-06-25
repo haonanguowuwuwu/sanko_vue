@@ -9,17 +9,27 @@ const { highlightOnly } = storeToRefs(annotationsStore)
 </script>
 
 <template>
-  <EmptyState v-if="highlightOnly.length === 0" title="高亮为空" />
+  <div class="annotation-page">
+    <EmptyState v-if="highlightOnly.length === 0" title="高亮为空" />
 
-  <div v-else class="annotation-list">
-    <AnnotationCard v-for="item in highlightOnly" :key="item.id" :item="item" mode="highlight" />
+    <div v-else class="annotation-list">
+      <AnnotationCard v-for="item in highlightOnly" :key="item.id" :item="item" mode="highlight" />
+    </div>
   </div>
 </template>
 
 <style scoped>
+.annotation-page {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .annotation-list {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  padding-bottom: 24px;
 }
 </style>

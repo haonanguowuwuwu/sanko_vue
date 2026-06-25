@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { USE_MOCK } from '@/api/config'
@@ -32,6 +32,7 @@ import { useBookshelvesStore } from '@/stores/bookshelves'
 import { useSettingsStore } from '@/stores/settings'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const booksStore = useBooksStore()
 const bookshelvesStore = useBookshelvesStore()
@@ -48,6 +49,7 @@ const showManageBookshelfDialog = ref(false)
 const showSettingsDialog = ref(false)
 const showBackupDialog = ref(false)
 const pendingImport = ref(false)
+const pendingRedirect = ref<string | null>(null)
 const importFileInput = ref<HTMLInputElement | null>(null)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -69,8 +71,11 @@ const isShelfActive = (shelfId: string) => route.name === 'shelf' && route.param
 
 const isLocalLibraryActive = computed(() => route.name === 'library')
 
-const isHomeRoute = computed(() => route.name === 'home')
+const isHomeRoute = computed(() => route.name === 'home' || route.name === 'book-intro')
 const isCategoriesRoute = computed(() => route.name === 'categories')
+const isProfileRoute = computed(
+  () => route.name === 'profile-points' || route.name === 'reading-history',
+)
 
 const openManageBookshelf = () => {
   showManageBookshelfDialog.value = true
@@ -117,7 +122,21 @@ const handleLoginSuccess = () => {
   if (pendingImport.value) {
     pendingImport.value = false
     handleImportBooks()
+    return
   }
+  if (pendingRedirect.value) {
+    const target = pendingRedirect.value
+    pendingRedirect.value = null
+    void router.push(target)
+  }
+}
+
+const goProfilePoints = () => {
+  void router.push({ name: 'profile-points' })
+}
+
+const goReadingHistory = () => {
+  void router.push({ name: 'reading-history' })
 }
 
 const handleLogout = async () => {
@@ -142,11 +161,28 @@ watch(searchKeyword, (value) => {
 watch(showLoginDialog, (open) => {
   if (!open && !userStore.isLoggedIn) {
     pendingImport.value = false
+    pendingRedirect.value = null
     if (enableSoftwareProtection.value) {
       showLoginDialog.value = true
     }
   }
 })
+
+watch(
+  () => route.query,
+  (query) => {
+    if (query.login === '1' && !userStore.isLoggedIn) {
+      if (typeof query.redirect === 'string') {
+        pendingRedirect.value = query.redirect
+        ElMessage.warning('请先登录后再访问')
+      }
+      showLoginDialog.value = true
+      const { login: _, redirect: __, ...rest } = query
+      void router.replace({ query: rest })
+    }
+  },
+  { immediate: true },
+)
 
 watch(enableSoftwareProtection, (enabled) => {
   if (enabled) {
@@ -214,13 +250,16 @@ onMounted(() => {
         <el-button v-if="!userStore.isLoggedIn" class="login-btn" text @click="openLoginDialog">
           登录
         </el-button>
-        <el-dropdown v-else trigger="click">
-          <el-button class="login-btn user-btn" text>
-            {{ userStore.username }}
-          </el-button>
+        <el-dropdown v-else trigger="click" popper-class="user-dropdown-popper">
+          <button type="button" class="user-profile-trigger">
+            <span class="user-avatar" aria-hidden="true" />
+            <span class="user-name">{{ userStore.username }}</span>
+          </button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
+              <el-dropdown-item @click="goProfilePoints">我的积分</el-dropdown-item>
+              <el-dropdown-item @click="goReadingHistory">阅读历史</el-dropdown-item>
+              <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -289,6 +328,7 @@ onMounted(() => {
         :class="{
           'main-content--home': isHomeRoute,
           'main-content--categories': isCategoriesRoute,
+          'main-content--profile': isProfileRoute,
         }"
       >
         <div class="main-content__inner">
@@ -405,6 +445,35 @@ onMounted(() => {
   font-weight: 500;
 }
 
+.user-profile-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  padding: 2px 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #c8c8c8;
+}
+
+.user-name {
+  font-size: 12px;
+  color: #1a8a8f;
+  font-weight: 500;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .import-btn {
   --el-button-bg-color: var(--sanko-green);
   --el-button-border-color: var(--sanko-green);
@@ -422,8 +491,11 @@ onMounted(() => {
   min-height: 0;
 }
 
-.main-body :deep(.main-content) {
+.main-body :deep(.el-main.main-content) {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .main-aside {
@@ -580,10 +652,36 @@ onMounted(() => {
   padding: 20px 32px;
 }
 
+.main-content--profile {
+  padding: 24px 40px;
+  background: #f5f5f5;
+}
+
 .main-content__inner {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+</style>
+
+<style>
+.user-dropdown-popper .el-dropdown-menu {
+  background: #f5f0e8;
+  border: 1px solid #d9d0c0;
+  padding: 6px 0;
+}
+
+.user-dropdown-popper .el-dropdown-menu__item {
+  color: var(--sanko-green);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.user-dropdown-popper .el-dropdown-menu__item:hover {
+  background: rgba(0, 90, 43, 0.08);
+  color: var(--sanko-green);
 }
 </style>

@@ -10,7 +10,7 @@ import {
   loadReaderSettings,
   normalizeSettingsForFormat,
 } from '@/reader/readerSettings'
-import { bootPdfReader } from '@/reader/pdfBoot'
+import { bootPdfReader, isPdfPagePainted } from '@/reader/pdfBoot'
 import { ensurePdfJsReady } from '@/reader/pdfjsSetup'
 import {
   applyPdfPageBorderStyles,
@@ -19,6 +19,8 @@ import {
 } from '@/reader/readerPageBorderStyles'
 import { spreadIndexFromPosition, spreadIndexToLocation, SPREAD_PAGE_STRIDE } from '@/reader/spreadIndex'
 import {
+  collectPdfHighlightPageIndices,
+  getPdfPageIndexFromHighlight,
   pdfChapterLabel,
   toKookitHighlightItems,
   toKookitPdfHighlightItems,
@@ -27,6 +29,11 @@ import {
 import { getHighlightColorDef } from '@/reader/highlightColors'
 import type { ReaderHighlight } from '@/types/reader'
 import { useReaderAnnotationsStore } from '@/stores/readerAnnotations'
+import {
+  buildEmptyBufferMessage,
+  normalizeReaderLoadError,
+  withReaderLoadTimeout,
+} from '@/reader/readerLoadErrors'
 
 export interface UseKookitRenditionOptions {
   bookId: string
@@ -37,7 +44,6 @@ export interface UseKookitRenditionOptions {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type KookitRenditionInstance = any
 
-const RENDER_TIMEOUT_MS = 60_000
 const CONTAINER_READY_MAX_FRAMES = 60
 
 async function waitForReaderContainer(el: HTMLElement): Promise<void> {
@@ -69,24 +75,16 @@ function getTxtParseLocation(saved: BookRecordLocation): BookRecordLocation | un
   }
 }
 
-async function renderToWithTimeout(
+async function renderToRendition(
   r: KookitRenditionInstance,
   el: HTMLElement,
   bookLocation?: BookRecordLocation,
 ): Promise<void> {
-  const task =
-    bookLocation != null ? r.renderTo(el, bookLocation) : r.renderTo(el)
-
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('打开书籍超时，请重试')), RENDER_TIMEOUT_MS)
-  })
-
-  try {
-    await Promise.race([task, timeout])
-  } finally {
-    if (timer) clearTimeout(timer)
+  if (bookLocation != null) {
+    await r.renderTo(el, bookLocation)
+    return
   }
+  await r.renderTo(el)
 }
 
 async function restoreReadingPosition(
@@ -146,108 +144,6 @@ function findHighlightKeyFromTarget(target: EventTarget | null): string | null {
   return key?.trim() ? key : null
 }
 
-/** 合并选区所有 client rect，避免多行时取第一行最左缘 */
-function getRangeUnionRect(range: Range): { left: number; top: number; width: number; height: number } | null {
-  const rects = range.getClientRects()
-  if (rects.length === 0) return null
-
-  let minLeft = Infinity
-  let minTop = Infinity
-  let maxRight = -Infinity
-  let maxBottom = -Infinity
-
-  for (const rect of rects) {
-    if (rect.width <= 0 && rect.height <= 0) continue
-    minLeft = Math.min(minLeft, rect.left)
-    minTop = Math.min(minTop, rect.top)
-    maxRight = Math.max(maxRight, rect.right)
-    maxBottom = Math.max(maxBottom, rect.bottom)
-  }
-
-  if (!Number.isFinite(minLeft)) return null
-  return {
-    left: minLeft,
-    top: minTop,
-    width: maxRight - minLeft,
-    height: Math.max(maxBottom - minTop, 0),
-  }
-}
-
-/** 取选区锚点矩形，兼容 PDF 单行 height=0 的情况 */
-function getSelectionAnchorRect(range: Range): { left: number; top: number; width: number; height: number } | null {
-  const union = getRangeUnionRect(range)
-  if (union) return union
-
-  const box = range.getBoundingClientRect()
-  if (box.width > 0 || box.height > 0) {
-    return {
-      left: box.left,
-      top: box.top,
-      width: Math.max(box.width, 1),
-      height: Math.max(box.height, 1),
-    }
-  }
-
-  for (const rect of range.getClientRects()) {
-    if (rect.width > 0 || rect.height > 0) {
-      return {
-        left: rect.left,
-        top: rect.top,
-        width: Math.max(rect.width, 1),
-        height: Math.max(rect.height, 1),
-      }
-    }
-  }
-
-  return null
-}
-
-function hasVisibleSelectionRect(range: Range): boolean {
-  return getSelectionAnchorRect(range) !== null
-}
-
-/**
- * 检测 PDF 子 iframe 内 DOMRect 是否已是顶层视口坐标。
- * 对比 documentElement 与 iframe 元素在视口中的位置，比按选区尺寸猜测更稳定。
- */
-function pdfSubDocUsesViewportCoords(subDoc: Document): boolean {
-  const frame = subDoc.defaultView?.frameElement as HTMLIFrameElement | null
-  if (!frame) return true
-  const frameRect = frame.getBoundingClientRect()
-  const docRect = subDoc.documentElement.getBoundingClientRect()
-  return (
-    Math.abs(docRect.top - frameRect.top) <= 2 &&
-    Math.abs(docRect.left - frameRect.left) <= 2
-  )
-}
-
-function pdfCoordsToViewport(
-  x: number,
-  y: number,
-  subDoc: Document,
-): { x: number; y: number } {
-  if (pdfSubDocUsesViewportCoords(subDoc)) {
-    return { x, y }
-  }
-  const frame = subDoc.defaultView?.frameElement as HTMLIFrameElement | null
-  if (!frame) return { x, y }
-  const frameRect = frame.getBoundingClientRect()
-  return {
-    x: frameRect.left + x,
-    y: frameRect.top + y,
-  }
-}
-
-/** 菜单锚点 y 不能太小，否则 translate(-100%) 会把菜单顶出视口 */
-function clampToolbarViewportPosition(x: number, y: number): { x: number; y: number } {
-  const margin = 12
-  const estToolbarHeight = 88
-  return {
-    x: Math.min(Math.max(x, margin), window.innerWidth - margin),
-    y: Math.max(y, estToolbarHeight + margin + 8),
-  }
-}
-
 function isPdfSubFrameNode(target: Node, mainDoc?: Document | null): boolean {
   const ownerDoc = target.ownerDocument
   if (!ownerDoc || ownerDoc === document || ownerDoc === mainDoc) return false
@@ -255,32 +151,17 @@ function isPdfSubFrameNode(target: Node, mainDoc?: Document | null): boolean {
   return frame instanceof HTMLIFrameElement && frame.id.startsWith('pdf-iframe-')
 }
 
-/** 子 iframe 内坐标 → 浏览器视口坐标（fixed 定位用） */
-function toPdfViewportPoint(
-  x: number,
-  y: number,
-  subDoc: Document,
-): { x: number; y: number } {
-  return pdfCoordsToViewport(x, y, subDoc)
-}
-
-function rectToPdfViewportToolbarPosition(
-  rect: { left: number; top: number; width: number; height: number },
-  subDoc: Document,
-): { x: number; y: number } {
-  const centerX = rect.left + rect.width / 2
-  const topY = rect.top
-  const viewport = pdfCoordsToViewport(centerX, topY, subDoc)
-  return clampToolbarViewportPosition(viewport.x, viewport.y)
-}
-
-/** PDF 子 iframe 内选区 rect 需叠加 frame 偏移才对应视口 fixed 定位 */
-function getPdfSelectionToolbarPosition(range: Range, subDoc: Document): { x: number; y: number } {
-  const anchorRect = getSelectionAnchorRect(range)
-  if (!anchorRect) {
-    return clampToolbarViewportPosition(0, 0)
+/** PDF 划词菜单：固定在读区左侧垂直居中，与选区无关 */
+function getFixedPdfToolbarPosition(pageArea: HTMLElement | null): { x: number; y: number } {
+  const margin = 12
+  if (!pageArea) {
+    return { x: margin + 8, y: window.innerHeight / 2 }
   }
-  return rectToPdfViewportToolbarPosition(anchorRect, subDoc)
+  const rect = pageArea.getBoundingClientRect()
+  return {
+    x: rect.left + 8,
+    y: rect.top + rect.height / 2,
+  }
 }
 
 export interface ReaderChapterItem {
@@ -478,20 +359,22 @@ export function useKookitRendition(
 
     const quote = sel.toString().trim()
     const domRange = sel.getRangeAt(0)
-    if (!hasVisibleSelectionRect(domRange)) {
-      clearTextSelection()
-      return
-    }
-
-    const { x, y } = getPdfSelectionToolbarPosition(domRange, subDoc)
+    const { x, y } = getFixedPdfToolbarPosition(pageAreaRef.value)
     const characterRange = await resolvePdfHighlightCoords(r, pageIndex, subDoc, domRange)
+    const resolvedPage =
+      characterRange &&
+      typeof characterRange === 'object' &&
+      characterRange !== null &&
+      typeof (characterRange as { page?: unknown }).page === 'number'
+        ? (characterRange as { page: number }).page
+        : pageIndex
 
     textSelection.value = {
       quote,
       range: characterRange ? JSON.stringify(characterRange) : '',
-      spreadIndex: pageIndex,
-      chapterDocIndex: pageIndex,
-      chapter: pdfChapterLabel(pageIndex),
+      spreadIndex: resolvedPage,
+      chapterDocIndex: resolvedPage,
+      chapter: pdfChapterLabel(resolvedPage),
       x,
       y,
     }
@@ -534,20 +417,7 @@ export function useKookitRendition(
 
     subDoc?.getSelection()?.removeAllRanges()
 
-    const highlightEl = (event.target as Element | null)?.closest('[data-key]') as HTMLElement | null
-    let toolbarX = event.clientX
-    let toolbarY = event.clientY
-
-    if (highlightEl && subDoc) {
-      const box = highlightEl.getBoundingClientRect()
-      const pos = rectToPdfViewportToolbarPosition(box, subDoc)
-      toolbarX = pos.x
-      toolbarY = pos.y
-    } else if (subDoc) {
-      const pos = toPdfViewportPoint(event.clientX, event.clientY, subDoc)
-      toolbarX = pos.x
-      toolbarY = pos.y
-    }
+    const { x: toolbarX, y: toolbarY } = getFixedPdfToolbarPosition(pageAreaRef.value)
 
     showToolbarForExistingHighlight(
       item,
@@ -585,33 +455,126 @@ export function useKookitRendition(
   function clearPdfPageHighlights(r: KookitRenditionInstance, pageIndex: number) {
     const subDoc = r.getSubDocument?.(pageIndex) as Document | null | undefined
     if (!subDoc) return
-    subDoc.querySelectorAll('.kookit-note, .noteLayer [data-key], #koodoPDFLayer [data-key]').forEach(
-      (el) => el.remove(),
-    )
+
+    subDoc
+      .querySelectorAll('.kookit-note, .kookit-note-icon, .noteLayer [data-key], #koodoPDFLayer [data-key]')
+      .forEach((el) => el.remove())
+
+    const noteLayer = subDoc.querySelector('.noteLayer')
+    if (noteLayer) {
+      noteLayer.querySelectorAll('.kookit-note, [data-key]').forEach((el) => el.remove())
+    }
   }
 
-  async function applyStoredPdfHighlights(r: KookitRenditionInstance) {
-    const bookId = options.value.bookId
-    const pageIndices = getVisiblePdfPageIndices(r)
+  function removePdfHighlightById(
+    r: KookitRenditionInstance,
+    pageIndex: number,
+    highlightId: string,
+  ) {
+    const subDoc = r.getSubDocument?.(pageIndex) as Document | null | undefined
+    if (!subDoc) return
 
-    for (const pageIndex of pageIndices) {
-      const items = annotationsStore.getHighlightsForChapter(bookId, pageIndex)
-      const payload = toKookitPdfHighlightItems(items, pageIndex)
+    subDoc.querySelectorAll(`[data-key="${highlightId}"]`).forEach((el) => el.remove())
 
+    if (typeof r.removeOneNote === 'function') {
       try {
-        if (payload.length === 0) {
-          clearPdfPageHighlights(r, pageIndex)
-          continue
-        }
-        await r.renderHighlighters(payload)
-        const subDoc = r.getSubDocument?.(pageIndex) as Document | null | undefined
-        if (subDoc) {
-          applyCustomPdfHighlightColors(subDoc, items)
-        }
+        r.removeOneNote(highlightId, pageIndex)
       } catch {
-        // ignore per-page highlight errors
+        // ignore kookit remove errors
       }
     }
+  }
+
+  async function ensurePdfPageReady(r: KookitRenditionInstance, pageIndex: number): Promise<boolean> {
+    const doc = r.getDocument?.()
+    if (!doc) return false
+
+    if (isPdfPagePainted(r, pageIndex)) {
+      return Boolean(r.getSubDocument?.(pageIndex))
+    }
+
+    if (typeof r.renderPdfPage === 'function') {
+      try {
+        await r.renderPdfPage(pageIndex, doc)
+      } catch {
+        // 懒加载页可能尚未挂载，继续尝试 scroll 唤醒
+      }
+    }
+
+    if (typeof r.handlePDFScrollEvent === 'function') {
+      try {
+        await r.handlePDFScrollEvent(doc)
+      } catch {
+        // ignore scroll handler errors
+      }
+    }
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      if (isPdfPagePainted(r, pageIndex) && r.getSubDocument?.(pageIndex)) {
+        return true
+      }
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 50))
+    }
+
+    return Boolean(r.getSubDocument?.(pageIndex))
+  }
+
+  async function renderPdfPageHighlights(r: KookitRenditionInstance, pageIndex: number) {
+    const bookId = options.value.bookId
+    const items = annotationsStore.getPdfHighlightsForPage(bookId, pageIndex)
+    const payload = toKookitPdfHighlightItems(items, pageIndex)
+
+    const ready = await ensurePdfPageReady(r, pageIndex)
+    if (!ready) return
+
+    if (payload.length === 0) {
+      clearPdfPageHighlights(r, pageIndex)
+      return
+    }
+
+    clearPdfPageHighlights(r, pageIndex)
+    await r.renderHighlighters(payload)
+    const subDoc = r.getSubDocument?.(pageIndex) as Document | null | undefined
+    if (subDoc) {
+      applyCustomPdfHighlightColors(subDoc, items)
+    }
+  }
+
+  async function applyStoredPdfHighlights(
+    r: KookitRenditionInstance,
+    forcePageIndices: number[] = [],
+  ) {
+    const bookId = options.value.bookId
+    const annotatedPages = collectPdfHighlightPageIndices(
+      annotationsStore.getHighlightsForBook(bookId),
+      bookId,
+    )
+    const visiblePages = getVisiblePdfPageIndices(r)
+    const pageIndices = [...new Set([...annotatedPages, ...visiblePages, ...forcePageIndices])].sort(
+      (a, b) => a - b,
+    )
+
+    for (const pageIndex of pageIndices) {
+      try {
+        await renderPdfPageHighlights(r, pageIndex)
+      } catch (err) {
+        console.warn('[PDF highlight] failed to render page', pageIndex, err)
+      }
+    }
+  }
+
+  async function refreshPdfHighlightsAfterRemove(
+    r: KookitRenditionInstance,
+    pageIndex: number,
+    highlightId: string,
+  ) {
+    removePdfHighlightById(r, pageIndex, highlightId)
+    await renderPdfPageHighlights(r, pageIndex)
+  }
+
+  function schedulePdfHighlightRefresh(r: KookitRenditionInstance) {
+    void applyStoredPdfHighlights(r)
+    window.setTimeout(() => void applyStoredPdfHighlights(r), 400)
   }
 
   function applyCustomPdfHighlightColors(subDoc: Document, items: ReaderHighlight[]) {
@@ -721,7 +684,7 @@ export function useKookitRendition(
       if (scrollTimer) clearTimeout(scrollTimer)
       scrollTimer = setTimeout(() => {
         refreshSubDocBindings()
-        void applyStoredPdfHighlights(r)
+        schedulePdfHighlightRefresh(r)
       }, 120)
     }
 
@@ -792,16 +755,25 @@ export function useKookitRendition(
     }
   }
 
-  async function applyStoredHighlights() {
+  async function removePdfHighlight(highlightId: string, pageIndex: number) {
+    const r = rendition.value
+    if (!r || !isPdfFormat(options.value.format)) return
+    await refreshPdfHighlightsAfterRemove(r, pageIndex, highlightId)
+  }
+
+  async function applyStoredHighlights(forcePageIndices: number[] = []) {
     const r = rendition.value
     if (!r?.renderHighlighters || !supportsAnnotationHighlight(options.value.format)) return
 
     if (isPdfFormat(options.value.format)) {
-      await applyStoredPdfHighlights(r)
+      await applyStoredPdfHighlights(r, forcePageIndices)
       return
     }
 
-    const chapterDocIndex = getCurrentChapterIndex()
+    const chapterDocIndex =
+      forcePageIndices.length > 0
+        ? forcePageIndices[0]!
+        : getCurrentChapterIndex()
     const items = annotationsStore.getHighlightsForChapter(
       options.value.bookId,
       chapterDocIndex,
@@ -858,79 +830,94 @@ export function useKookitRendition(
   async function open(buffer: ArrayBuffer) {
     loading.value = true
     error.value = null
+    const format = options.value.format.toUpperCase()
+
+    if (buffer.byteLength === 0) {
+      loading.value = false
+      const message = buildEmptyBufferMessage(format)
+      error.value = message
+      throw new Error(message)
+    }
+
     try {
-      if (rendition.value) {
-        rendition.value.removeContent?.()
-        rendition.value = null
-      }
-
-      const el = pageAreaRef.value
-      if (!el) {
-        throw new Error('阅读容器未就绪')
-      }
-
-      await waitForReaderContainer(el)
-
-      const format = options.value.format.toUpperCase()
-      const { charset } = options.value
-      const settings = normalizeSettingsForFormat(loadReaderSettings(), format)
-      configService.applySettings(settings)
-      const config = buildRenditionConfig(format, charset ?? '')
-      const r = BookHelper.getRendition(buffer, config as unknown as Record<string, unknown>, Kookit)
-      if (!r) {
-        throw new Error(`暂不支持 ${format} 格式`)
-      }
-
-      if (format === 'TXT' && r.getMetadata) {
-        await r.getMetadata(buffer)
-      }
-
-      rendition.value = r
-      const saved = getRecordLocation(options.value.bookId)
-
-      if (format === 'PDF') {
-        await ensurePdfJsReady()
-      }
-
-      if (format === 'TXT') {
-        const parseLocation = getTxtParseLocation(saved)
-        await renderToWithTimeout(r, el, parseLocation)
-      } else {
-        await renderToWithTimeout(r, el)
-      }
-
-      if (format === 'PDF') {
-        await bootPdfReader(
-          r,
-          el,
-          () => restoreReadingPosition(r, saved, format),
-          () => renderToWithTimeout(r, el),
-        )
-      } else {
-        await restoreReadingPosition(r, saved, format)
-      }
-
-      applyReaderStyles(options.value.bookId)
-      bindRenditionEvents()
-      if (supportsAnnotationHighlight(format)) {
-        bindTextSelection(r)
-      }
-
-      const pos = r.getPosition?.()
-      if (pos) {
-        updateCurrentSpreadIndex()
-        const title = pos.chapterTitle
-        chapterTitle.value = typeof title === 'string' ? title : ''
-      }
-      await syncProgressDisplay()
-      if (supportsAnnotationHighlight(format)) {
-        await applyStoredHighlights()
-      }
+      await withReaderLoadTimeout(performOpen(buffer, format), format)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : '打开书籍失败'
-      throw e
+      rendition.value?.removeContent?.()
+      rendition.value = null
+      const message = normalizeReaderLoadError(e, format)
+      error.value = message
+      throw new Error(message)
     } finally {
       loading.value = false
+    }
+  }
+
+  async function performOpen(buffer: ArrayBuffer, format: string) {
+    if (rendition.value) {
+      rendition.value.removeContent?.()
+      rendition.value = null
+    }
+
+    const el = pageAreaRef.value
+    if (!el) {
+      throw new Error('阅读容器未就绪')
+    }
+
+    await waitForReaderContainer(el)
+
+    const { charset } = options.value
+    const settings = normalizeSettingsForFormat(loadReaderSettings(), format)
+    configService.applySettings(settings)
+    const config = buildRenditionConfig(format, charset ?? '')
+    const r = BookHelper.getRendition(buffer, config as unknown as Record<string, unknown>, Kookit)
+    if (!r) {
+      throw new Error(`暂不支持 ${format} 格式`)
+    }
+
+    if (format === 'TXT' && r.getMetadata) {
+      await r.getMetadata(buffer)
+    }
+
+    rendition.value = r
+    const saved = getRecordLocation(options.value.bookId)
+
+    if (format === 'PDF') {
+      await ensurePdfJsReady()
+    }
+
+    if (format === 'TXT') {
+      const parseLocation = getTxtParseLocation(saved)
+      await renderToRendition(r, el, parseLocation)
+    } else {
+      await renderToRendition(r, el)
+    }
+
+    if (format === 'PDF') {
+      await bootPdfReader(
+        r,
+        el,
+        () => restoreReadingPosition(r, saved, format),
+        () => renderToRendition(r, el),
+      )
+    } else {
+      await restoreReadingPosition(r, saved, format)
+    }
+
+    applyReaderStyles(options.value.bookId)
+    bindRenditionEvents()
+    if (supportsAnnotationHighlight(format)) {
+      bindTextSelection(r)
+    }
+
+    const pos = r.getPosition?.()
+    if (pos) {
+      updateCurrentSpreadIndex()
+      const title = pos.chapterTitle
+      chapterTitle.value = typeof title === 'string' ? title : ''
+    }
+    await syncProgressDisplay()
+    if (supportsAnnotationHighlight(format)) {
+      await applyStoredHighlights()
     }
   }
 
@@ -982,11 +969,13 @@ export function useKookitRendition(
         }),
       )
       updateCurrentSpreadIndex()
+      await applyStoredHighlights()
       return
     }
 
     await r.goToChapterDocIndex?.(spreadIndex)
     updateCurrentSpreadIndex()
+    await applyStoredHighlights()
   }
 
   function getChapterList(): ReaderChapterItem[] {
@@ -1078,6 +1067,7 @@ export function useKookitRendition(
     getCurrentSpreadIndex,
     applyReaderStyles,
     applyStoredHighlights,
+    removePdfHighlight,
     clearTextSelection,
     refreshPendingSelectionRange,
     destroy,

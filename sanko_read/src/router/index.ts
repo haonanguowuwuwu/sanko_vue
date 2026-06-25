@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/layout/MainLayout.vue'
+import { useUserStore } from '@/stores/user'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -17,6 +18,11 @@ const router = createRouter({
           path: '',
           name: 'home',
           component: () => import('@/views/HomeView.vue'),
+        },
+        {
+          path: 'book/:id',
+          name: 'book-intro',
+          component: () => import('@/views/BookIntroView.vue'),
         },
         {
           path: 'categories',
@@ -58,9 +64,39 @@ const router = createRouter({
           name: 'shelf',
           component: () => import('@/views/ShelfView.vue'),
         },
+        {
+          path: 'profile/points',
+          name: 'profile-points',
+          meta: { requiresAuth: true },
+          component: () => import('@/views/ProfilePointsView.vue'),
+        },
+        {
+          path: 'profile/history',
+          name: 'reading-history',
+          meta: { requiresAuth: true },
+          component: () => import('@/views/ReadingHistoryView.vue'),
+        },
       ],
     },
   ],
+})
+
+router.beforeEach(async (to) => {
+  if (!to.meta.requiresAuth) return true
+
+  const userStore = useUserStore()
+  if (!userStore.initialized) {
+    await userStore.init()
+  }
+
+  if (!userStore.isLoggedIn) {
+    return {
+      path: '/',
+      query: { login: '1', redirect: to.fullPath },
+    }
+  }
+
+  return true
 })
 
 export default router

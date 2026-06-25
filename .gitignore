@@ -12,3 +12,4 @@ packages/kookit/node_modules/
 !.vscode/extensions.json
 *.log
 coverage/
+_design_import/
