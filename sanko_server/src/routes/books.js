@@ -72,6 +72,17 @@ router.get('/', (_req, res) => {
   res.json(ok([...store.personalBooks]))
 })
 
+router.get('/reading-history', (_req, res) => {
+  const list = store.personalBooks
+    .filter((b) => b.lastReadAt || b.progress > 0)
+    .sort((a, b) => {
+      const ta = a.lastReadAt ?? ''
+      const tb = b.lastReadAt ?? ''
+      return tb.localeCompare(ta)
+    })
+  res.json(ok(list))
+})
+
 router.get('/trash', (_req, res) => {
   res.json(ok([...store.trashedBooks]))
 })

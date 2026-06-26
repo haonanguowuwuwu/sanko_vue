@@ -6,6 +6,14 @@ import {
   defaultShelves,
 } from './seed.js'
 
+function seedCatalogComments() {
+  const map = new Map()
+  for (const book of catalogBooks) {
+    map.set(book.id, book.comments ? JSON.parse(JSON.stringify(book.comments)) : [])
+  }
+  return map
+}
+
 /** 内存数据库，重启后清空 */
 export const store = {
   sessions: new Map(),
@@ -22,6 +30,9 @@ export const store = {
   bookFormats: new Map(),
   /** bookId -> { storedName, format, fileSize } 用户上传的文件 */
   bookFiles: new Map(),
+  catalogComments: seedCatalogComments(),
+  blockedTags: new Set(),
+  commentLikes: new Set(),
 }
 
 export function resetStore() {
@@ -37,6 +48,9 @@ export function resetStore() {
   store.pointsOrders = [...defaultPointsOrders]
   store.bookFormats.clear()
   store.bookFiles.clear()
+  store.catalogComments = seedCatalogComments()
+  store.blockedTags.clear()
+  store.commentLikes.clear()
 }
 
 export function findCatalogBook(id) {

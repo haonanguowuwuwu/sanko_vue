@@ -4,12 +4,21 @@ import { ElMessage } from 'element-plus'
 import { CircleClose } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import type { CatalogComment } from '@/data/catalogBooks'
+import {
+  fetchCatalogComments,
+  likeCatalogComment,
+  postCatalogComment,
+  postCommentReply,
+  reportCatalogComment,
+  unlikeCatalogComment,
+} from '@/api/catalog'
 import { useUserStore } from '@/stores/user'
 import { useRequireLogin } from '@/composables/useRequireLogin'
 import BookCommentComposer from '@/components/book/BookCommentComposer.vue'
 import BookCommentReportDialog from '@/components/book/BookCommentReportDialog.vue'
 
 const props = defineProps<{
+  bookId?: string
   initialComments?: CatalogComment[]
   interactive?: boolean
 }>()
@@ -19,8 +28,10 @@ const { username } = storeToRefs(userStore)
 const { requireLogin } = useRequireLogin()
 
 const canInteract = computed(() => props.interactive !== false && userStore.isLoggedIn)
+const useRemote = computed(() => Boolean(props.bookId))
 
 const comments = ref<CatalogComment[]>([])
+const commentsLoading = ref(false)
 const newCommentText = ref('')
 const replyText = ref('')
 const replyingToId = ref<string | null>(null)
@@ -31,55 +42,84 @@ const likedIds = ref<Set<string>>(new Set())
 const showReportDialog = ref(false)
 const reportTarget = ref<{ commentId: string; replyId?: string } | null>(null)
 
+function cloneComments(value: CatalogComment[] | undefined) {
+  return (value ?? []).map((comment) => ({
+    ...comment,
+    replies: comment.replies?.map((reply) => ({ ...reply })),
+  }))
+}
+
+async function loadComments() {
+  if (props.bookId) {
+    commentsLoading.value = true
+    try {
+      const page = await fetchCatalogComments(props.bookId)
+      comments.value = cloneComments(page.items)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '加载评论失败'
+      ElMessage.error(message)
+      comments.value = cloneComments(props.initialComments)
+    } finally {
+      commentsLoading.value = false
+    }
+    return
+  }
+  comments.value = cloneComments(props.initialComments)
+}
+
 watch(
-  () => props.initialComments,
-  (value) => {
-    comments.value = (value ?? []).map((comment) => ({
-      ...comment,
-      replies: comment.replies?.map((reply) => ({ ...reply })),
-    }))
+  () => [props.bookId, props.initialComments] as const,
+  () => {
     expandedReplies.value = {}
     expandedReplyLists.value = {}
     showAllComments.value = false
     replyingToId.value = null
     replyText.value = ''
     newCommentText.value = ''
+    void loadComments()
   },
   { immediate: true },
 )
 
+const INITIAL_VISIBLE_COMMENTS = 2
+const INITIAL_VISIBLE_REPLIES = 1
+
 const visibleComments = computed(() =>
-  showAllComments.value ? comments.value : comments.value.slice(0, 2),
+  showAllComments.value ? comments.value : comments.value.slice(0, INITIAL_VISIBLE_COMMENTS),
+)
+
+const hasMoreComments = computed(
+  () => !showAllComments.value && comments.value.length > INITIAL_VISIBLE_COMMENTS,
 )
 
 const currentUserName = computed(() => username.value ?? '游客')
 
-const formatDate = () => {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const d = String(now.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-const createId = () => `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-
-const hasReplies = (comment: CatalogComment) => (comment.replies?.length ?? 0) > 0
+const hasReplies = (comment: CatalogComment) => replyTotal(comment) > 0
 
 const isRepliesExpanded = (comment: CatalogComment) =>
-  expandedReplies.value[comment.id] ?? false
+  expandedReplies.value[comment.id] ?? hasReplies(comment)
 
 const visibleReplies = (comment: CatalogComment) => {
   const replies = comment.replies ?? []
   if (expandedReplyLists.value[comment.id]) return replies
-  return replies.slice(0, 1)
+  return replies.slice(0, INITIAL_VISIBLE_REPLIES)
 }
 
-const hasMoreReplies = (comment: CatalogComment) =>
-  (comment.replies?.length ?? 0) > 1 && !expandedReplyLists.value[comment.id]
+function replyTotal(comment: CatalogComment) {
+  return Math.max(comment.replyCount ?? 0, comment.replies?.length ?? 0)
+}
+
+const hasMoreReplies = (comment: CatalogComment) => {
+  if (expandedReplyLists.value[comment.id]) return false
+  return replyTotal(comment) > visibleReplies(comment).length
+}
 
 const toggleReplies = (commentId: string) => {
-  expandedReplies.value[commentId] = !expandedReplies.value[commentId]
+  const comment = comments.value.find((item) => item.id === commentId)
+  const currentlyExpanded = comment
+    ? (expandedReplies.value[commentId] ?? hasReplies(comment))
+    : false
+  expandedReplies.value[commentId] = !currentlyExpanded
 }
 
 const loadMoreReplies = (commentId: string) => {
@@ -88,16 +128,29 @@ const loadMoreReplies = (commentId: string) => {
 
 const isLiked = (id: string) => likedIds.value.has(id)
 
-const toggleLike = (target: CatalogComment) => {
-  const liked = new Set(likedIds.value)
-  if (liked.has(target.id)) {
-    liked.delete(target.id)
-    target.likes = Math.max(0, target.likes - 1)
-  } else {
-    liked.add(target.id)
-    target.likes += 1
+const toggleLike = async (target: CatalogComment) => {
+  const liked = likedIds.value.has(target.id)
+  try {
+    if (useRemote.value) {
+      if (liked) {
+        await unlikeCatalogComment(target.id)
+      } else {
+        await likeCatalogComment(target.id)
+      }
+    }
+    const next = new Set(likedIds.value)
+    if (liked) {
+      next.delete(target.id)
+      target.likes = Math.max(0, target.likes - 1)
+    } else {
+      next.add(target.id)
+      target.likes += 1
+    }
+    likedIds.value = next
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '操作失败'
+    ElMessage.error(message)
   }
-  likedIds.value = liked
 }
 
 const startReply = (commentId: string) => {
@@ -108,43 +161,64 @@ const startReply = (commentId: string) => {
   }, '请先登录后再回复')
 }
 
-const submitComment = () => {
+const submitComment = async () => {
   if (!canInteract.value) return
   const content = newCommentText.value.trim()
   if (!content) return
 
-  comments.value.unshift({
-    id: createId(),
-    user: currentUserName.value,
-    content,
-    date: formatDate(),
-    likes: 0,
-    replyCount: 0,
-    replies: [],
-  })
-  newCommentText.value = ''
-  ElMessage.success('评论已发送')
+  try {
+    if (useRemote.value && props.bookId) {
+      const comment = await postCatalogComment(props.bookId, content)
+      comments.value.unshift(comment)
+    } else {
+      comments.value.unshift({
+        id: `local-${Date.now()}`,
+        user: currentUserName.value,
+        content,
+        date: new Date().toISOString().slice(0, 10),
+        likes: 0,
+        replyCount: 0,
+        replies: [],
+      })
+    }
+    newCommentText.value = ''
+    ElMessage.success('评论已发送')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '发送失败'
+    ElMessage.error(message)
+  }
 }
 
-const submitReply = (comment: CatalogComment) => {
+const submitReply = async (comment: CatalogComment) => {
   if (!canInteract.value) return
   const content = replyText.value.trim()
   if (!content) return
 
-  if (!comment.replies) comment.replies = []
-  comment.replies.push({
-    id: createId(),
-    user: currentUserName.value,
-    content,
-    date: formatDate(),
-    likes: 0,
-    replyCount: 0,
-  })
-  comment.replyCount = comment.replies.length
-  expandedReplies.value[comment.id] = true
-  replyingToId.value = null
-  replyText.value = ''
-  ElMessage.success('回复已发送')
+  try {
+    if (useRemote.value) {
+      const reply = await postCommentReply(comment.id, content)
+      if (!comment.replies) comment.replies = []
+      comment.replies.push(reply)
+    } else {
+      if (!comment.replies) comment.replies = []
+      comment.replies.push({
+        id: `local-${Date.now()}`,
+        user: currentUserName.value,
+        content,
+        date: new Date().toISOString().slice(0, 10),
+        likes: 0,
+        replyCount: 0,
+      })
+    }
+    comment.replyCount = comment.replies?.length ?? 0
+    expandedReplies.value[comment.id] = true
+    replyingToId.value = null
+    replyText.value = ''
+    ElMessage.success('回复已发送')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '发送失败'
+    ElMessage.error(message)
+  }
 }
 
 const openReport = (commentId: string, replyId?: string) => {
@@ -154,7 +228,7 @@ const openReport = (commentId: string, replyId?: string) => {
   }, '请先登录后再举报')
 }
 
-const onReportConfirm = (reason: string) => {
+const onReportConfirm = async (reason: string) => {
   const target = reportTarget.value
   if (!target) return
 
@@ -168,14 +242,25 @@ const onReportConfirm = (reason: string) => {
     label = comment ? `${comment.user} 的评论` : '评论'
   }
 
-  ElMessage.success(`已举报${label}：${reason}`)
-  reportTarget.value = null
+  try {
+    if (useRemote.value) {
+      await reportCatalogComment(target.replyId ?? target.commentId, reason)
+    }
+    ElMessage.success(`已举报${label}：${reason}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '举报失败'
+    ElMessage.error(message)
+  } finally {
+    reportTarget.value = null
+  }
 }
 </script>
 
 <template>
   <section class="book-comments">
     <h2 class="book-comments__heading">评论</h2>
+
+    <p v-if="commentsLoading" class="book-comments__guest-hint">评论加载中…</p>
 
     <BookCommentComposer
       v-if="canInteract"
@@ -325,18 +410,18 @@ const onReportConfirm = (reason: string) => {
           class="book-comment__load-more"
           @click="loadMoreReplies(comment.id)"
         >
-          加载更多回复
+          更多回复
         </button>
       </div>
     </article>
 
     <button
-      v-if="!showAllComments && comments.length > 2"
+      v-if="hasMoreComments"
       type="button"
       class="book-comments__load-more"
       @click="showAllComments = true"
     >
-      加载更多评论
+      更多评论
     </button>
 
     <BookCommentReportDialog v-model:visible="showReportDialog" @confirm="onReportConfirm" />

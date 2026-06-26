@@ -1,72 +1,21 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import BookFilterBar, { type FilterRow } from '@/components/category/BookFilterBar.vue'
 import TagMorePanel from '@/components/category/TagMorePanel.vue'
 import TagShieldDialog from '@/components/category/TagShieldDialog.vue'
+import {
+  fetchBlockedTags,
+  fetchCatalogBooks,
+  fetchCatalogFilters,
+  updateBlockedTags,
+} from '@/api/catalog'
+import type { CatalogBook } from '@/types/catalog'
+import { useUserStore } from '@/stores/user'
 
-interface MockBook {
-  id: string
-  title: string
-  author: string
-  coverColor: string
-  coverTitle: string
-}
-
-const baseFilterRows: FilterRow[] = [
-  {
-    label: '分类',
-    key: 'category',
-    options: [
-      { label: '全部', value: 'all' },
-      { label: '男生', value: 'male' },
-      { label: '女生', value: 'female' },
-      { label: '出版', value: 'publish' },
-    ],
-  },
-  {
-    label: '属性',
-    key: 'attr',
-    options: [
-      { label: '全部', value: 'all' },
-      { label: '无需积分购买', value: 'free' },
-      { label: '需要积分购买', value: 'paid' },
-    ],
-  },
-  {
-    label: '标签',
-    key: 'tags',
-    options: [
-      { label: '豪门', value: '豪门' },
-      { label: '孤儿', value: '孤儿' },
-      { label: '宠物', value: '宠物' },
-      { label: '种田文', value: '种田文' },
-      { label: '无敌文', value: '无敌文' },
-    ],
-    showMore: true,
-    showTagShield: true,
-  },
-]
-
-const allTags = [
-  '豪门',
-  '孤儿',
-  '宠物',
-  '种田文',
-  '无敌文',
-  '盗贼',
-  '特工',
-  '黑客',
-  '江湖',
-  '热血',
-  '重生',
-  '穿越',
-  '系统',
-  '末世',
-  '星际',
-  '电竞',
-]
-
-const defaultVisibleTags = ['豪门', '孤儿', '宠物', '种田文', '无敌文']
+const router = useRouter()
+const userStore = useUserStore()
 
 const filters = ref<Record<string, string>>({
   category: 'all',
@@ -74,41 +23,103 @@ const filters = ref<Record<string, string>>({
   tags: '豪门',
 })
 
-const filterRows = computed(() => {
-  const rows = baseFilterRows.map((row) =>
-    row.key === 'tags' ? { ...row, options: [...row.options] } : row,
-  )
-  const tagRow = rows.find((row) => row.key === 'tags')
-  const currentTag = filters.value.tags
-  if (
-    tagRow &&
-    currentTag &&
-    !defaultVisibleTags.includes(currentTag) &&
-    !tagRow.options.some((option) => option.value === currentTag)
-  ) {
-    tagRow.options.push({ label: currentTag, value: currentTag })
-  }
-  return rows
+const filterConfig = ref<{ categories: FilterRow['options']; attrs: FilterRow['options']; tags: string[] }>({
+  categories: [
+    { label: '全部', value: 'all' },
+    { label: '男生', value: 'male' },
+    { label: '女生', value: 'female' },
+    { label: '出版', value: 'publish' },
+  ],
+  attrs: [
+    { label: '全部', value: 'all' },
+    { label: '无需积分购买', value: 'free' },
+    { label: '需要积分购买', value: 'paid' },
+  ],
+  tags: ['豪门', '孤儿', '宠物', '种田文', '无敌文'],
 })
 
-const mockBooks: MockBook[] = Array.from({ length: 10 }, (_, index) => {
-  const n = index + 1
-  const colors = ['#c45c26', '#1a5fb4', '#2d8659', '#6b3fa0', '#b83232', '#117a65', '#922b21', '#1c2833', '#8b4513', '#4a235a']
-  return {
-    id: `c${n}`,
-    title: `书籍${n}`,
-    author: `作者${n}`,
-    coverColor: colors[index % colors.length]!,
-    coverTitle: `书籍${n}`,
-  }
-})
+const defaultVisibleTags = ['豪门', '孤儿', '宠物', '种田文', '无敌文']
 
+const books = ref<CatalogBook[]>([])
+const loading = ref(false)
 const showTagMore = ref(false)
 const showTagShield = ref(false)
-const blockedTags = ref<string[]>(['种田文', '热血'])
+const blockedTags = ref<string[]>([])
 const draftBlockedTags = ref<string[]>([])
 
+const allTags = computed(() => filterConfig.value.tags)
+
+const filterRows = computed((): FilterRow[] => {
+  const tagOptions = defaultVisibleTags.map((tag) => ({ label: tag, value: tag }))
+  const currentTag = filters.value.tags
+  if (currentTag && !defaultVisibleTags.includes(currentTag) && !tagOptions.some((o) => o.value === currentTag)) {
+    tagOptions.push({ label: currentTag, value: currentTag })
+  }
+  return [
+    { label: '分类', key: 'category', options: filterConfig.value.categories },
+    { label: '属性', key: 'attr', options: filterConfig.value.attrs },
+    {
+      label: '标签',
+      key: 'tags',
+      options: tagOptions,
+      showMore: true,
+      showTagShield: true,
+    },
+  ]
+})
+
+async function loadFilters() {
+  try {
+    const data = await fetchCatalogFilters()
+    filterConfig.value = {
+      categories: data.categories,
+      attrs: data.attrs,
+      tags: data.tags,
+    }
+    if (data.tags.length && !data.tags.includes(filters.value.tags ?? '')) {
+      filters.value.tags = data.tags[0]!
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '加载筛选项失败'
+    ElMessage.error(message)
+  }
+}
+
+async function loadBlockedTags() {
+  if (!userStore.isLoggedIn) {
+    blockedTags.value = []
+    return
+  }
+  try {
+    blockedTags.value = await fetchBlockedTags()
+  } catch {
+    blockedTags.value = []
+  }
+}
+
+async function loadBooks() {
+  loading.value = true
+  try {
+    const page = await fetchCatalogBooks({
+      category: filters.value.category,
+      attr: filters.value.attr,
+      tags: filters.value.tags,
+    })
+    books.value = page.items
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '加载书籍失败'
+    ElMessage.error(message)
+    books.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
 const openTagShield = () => {
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录后再设置标签屏蔽')
+    return
+  }
   draftBlockedTags.value = [...blockedTags.value]
   showTagShield.value = true
 }
@@ -120,8 +131,15 @@ const toggleShieldTag = (tag: string) => {
     : [...list, tag]
 }
 
-const confirmShieldTags = () => {
-  blockedTags.value = [...draftBlockedTags.value]
+const confirmShieldTags = async () => {
+  try {
+    blockedTags.value = await updateBlockedTags(draftBlockedTags.value)
+    ElMessage.success('标签屏蔽已更新')
+    await loadBooks()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '保存失败'
+    ElMessage.error(message)
+  }
 }
 
 const selectTagFromMore = (tag: string) => {
@@ -132,6 +150,32 @@ const selectTagFromMore = (tag: string) => {
 const onMore = (key: string) => {
   if (key === 'tags') showTagMore.value = true
 }
+
+const openBook = (id: string) => {
+  void router.push({ name: 'book-intro', params: { id } })
+}
+
+watch(
+  filters,
+  () => {
+    void loadBooks()
+  },
+  { deep: true },
+)
+
+watch(
+  () => userStore.isLoggedIn,
+  () => {
+    void loadBlockedTags()
+    void loadBooks()
+  },
+)
+
+onMounted(async () => {
+  await loadFilters()
+  await loadBlockedTags()
+  await loadBooks()
+})
 </script>
 
 <template>
@@ -151,8 +195,20 @@ const onMore = (key: string) => {
       />
     </div>
 
-    <div class="categories-page__grid">
-      <article v-for="book in mockBooks" :key="book.id" class="categories-book">
+    <div v-if="loading" class="categories-page__status">加载中…</div>
+
+    <div v-else-if="books.length === 0" class="categories-page__status">暂无符合条件的书籍</div>
+
+    <div v-else class="categories-page__grid">
+      <article
+        v-for="book in books"
+        :key="book.id"
+        class="categories-book"
+        role="link"
+        tabindex="0"
+        @click="openBook(book.id)"
+        @keydown.enter="openBook(book.id)"
+      >
         <div class="categories-book__cover" :style="{ background: book.coverColor }">
           <span class="categories-book__cover-title">{{ book.coverTitle }}</span>
         </div>
@@ -187,6 +243,14 @@ const onMore = (key: string) => {
   padding-inline: 8px;
 }
 
+.categories-page__status {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sanko-text-secondary);
+}
+
 .categories-page__grid {
   flex: 1;
   min-height: 0;
@@ -200,6 +264,7 @@ const onMore = (key: string) => {
 
 .categories-book {
   min-width: 0;
+  cursor: pointer;
 }
 
 .categories-book__cover {

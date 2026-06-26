@@ -35,6 +35,9 @@ export const mockState = {
   })) as Bookshelf[],
   highlights: [] as ReaderHighlight[],
   bookmarks: [] as ReaderBookmark[],
+  blockedTags: new Set<string>(),
+  catalogComments: new Map<string, import('@/types/catalog').CatalogComment[]>(),
+  commentLikes: new Set<string>(),
   settings: {
     disableRecycleBin: true,
     hideBookshelfBooks: false,

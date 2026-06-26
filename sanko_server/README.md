@@ -42,7 +42,8 @@ VITE_API_BASE_URL=http://localhost:8083
 | 健康检查 | `GET /health` |
 | 认证 | `POST /api/auth/login`、`/logout`、`GET /me` |
 | 设置 | `GET/PATCH /api/settings` |
-| 书城 | `GET /api/catalog/home`、`/filters`、`/books`、`/books/:id` |
+| 书城 | `GET /api/catalog/home`、`/filters`、`/books`、`/books/:id`、评论、标签屏蔽 |
+| 阅读历史 | `GET /api/books/reading-history`（需登录） |
 | 个人书库 | `GET/POST /api/books`、`/search`、`POST /:id/file`、`DELETE /:id`、`/:id/file-url`、`/:id/progress`（需登录） |
 | 喜欢 | `GET/POST/DELETE /api/favorites/:bookId` |
 | 书架 | `GET/POST/PATCH/DELETE /api/bookshelves/*` |

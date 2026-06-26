@@ -250,7 +250,12 @@ const onAddToShelfSuccess = ({ shelfCount }: { shelfCount: number }) => {
       </button>
     </div>
 
-    <BookCommentSection :initial-comments="book.comments" :interactive="isLoggedIn" />
+    <BookCommentSection
+      v-if="book"
+      :book-id="book.id"
+      :initial-comments="book.comments"
+      :interactive="isLoggedIn"
+    />
 
     <AddToBookshelfDialog
       v-model:visible="showAddToShelfDialog"

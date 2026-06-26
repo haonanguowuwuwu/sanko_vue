@@ -59,6 +59,20 @@ export async function listBooks(): Promise<Book[]> {
   return request<Book[]>('/api/books')
 }
 
+export async function fetchReadingHistory(): Promise<Book[]> {
+  if (USE_MOCK) {
+    const read = mockState.books.filter((b) => mockState.lastReadMap[b.id] || b.lastReadAt)
+    return mockDelay(
+      [...read].sort((a, b) => {
+        const ta = mockState.lastReadMap[a.id] ?? a.lastReadAt ?? ''
+        const tb = mockState.lastReadMap[b.id] ?? b.lastReadAt ?? ''
+        return tb.localeCompare(ta)
+      }),
+    )
+  }
+  return request<Book[]>('/api/books/reading-history')
+}
+
 export async function listTrashedBooks(): Promise<Book[]> {
   if (USE_MOCK) {
     return mockDelay([...mockState.trashedBooks])

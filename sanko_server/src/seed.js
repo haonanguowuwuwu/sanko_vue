@@ -29,6 +29,14 @@ export const santiBook = {
           likes: 12,
           replyCount: 0,
         },
+        {
+          id: 'c1-r2',
+          user: '用户6',
+          content: '第一部节奏稍慢，但后面越来越精彩。',
+          date: '2026-06-04',
+          likes: 5,
+          replyCount: 0,
+        },
       ],
     },
     {
@@ -37,6 +45,48 @@ export const santiBook = {
       content: '一本非常有深度的书，千万千万不要往宇宙发送自己的坐标！',
       date: '2026-06-02',
       likes: 30,
+      replyCount: 4,
+      replies: [
+        {
+          id: 'c2-r1',
+          user: '用户4',
+          content: '黑暗森林法则太震撼了。',
+          date: '2026-06-04',
+          likes: 8,
+          replyCount: 0,
+        },
+        {
+          id: 'c2-r2',
+          user: '用户7',
+          content: '程心这个角色争议很大，但正是这种争议让故事更有张力。',
+          date: '2026-06-05',
+          likes: 6,
+          replyCount: 0,
+        },
+        {
+          id: 'c2-r3',
+          user: '用户8',
+          content: '水滴攻击那段看得我头皮发麻。',
+          date: '2026-06-06',
+          likes: 15,
+          replyCount: 0,
+        },
+        {
+          id: 'c2-r4',
+          user: '用户9',
+          content: '建议先看一遍原著再看解读，体验完全不同。',
+          date: '2026-06-07',
+          likes: 3,
+          replyCount: 0,
+        },
+      ],
+    },
+    {
+      id: 'c3',
+      user: '用户5',
+      content: '刘慈欣的想象力真的无敌，读完久久不能平静。',
+      date: '2026-06-05',
+      likes: 18,
       replyCount: 0,
     },
   ],
@@ -50,10 +100,10 @@ export const santiBook = {
 }
 
 const placeholderBooks = [
-  { id: 'f2', title: '书籍2', author: '作者2', coverColor: '#1a5fb4', coverTitle: '书籍2', purchaseType: 'paid' },
-  { id: 'f3', title: '书籍3', author: '作者3', coverColor: '#2d8659', coverTitle: '书籍3', purchaseType: 'free' },
-  { id: 'f4', title: '书籍4', author: '作者4', coverColor: '#6b3fa0', coverTitle: '书籍4', purchaseType: 'paid' },
-  { id: 'f5', title: '书籍5', author: '作者5', coverColor: '#b83232', coverTitle: '书籍5', purchaseType: 'free' },
+  { id: 'f2', title: '书籍2', author: '作者2', coverColor: '#1a5fb4', coverTitle: '书籍2', purchaseType: 'paid', tags: ['豪门', '热血'] },
+  { id: 'f3', title: '书籍3', author: '作者3', coverColor: '#2d8659', coverTitle: '书籍3', purchaseType: 'free', tags: ['孤儿', '宠物'] },
+  { id: 'f4', title: '书籍4', author: '作者4', coverColor: '#6b3fa0', coverTitle: '书籍4', purchaseType: 'paid', tags: ['种田文', '无敌文'] },
+  { id: 'f5', title: '书籍5', author: '作者5', coverColor: '#b83232', coverTitle: '书籍5', purchaseType: 'free', tags: ['科幻', '硬核'] },
 ]
 
 export const catalogBooks = [santiBook, ...placeholderBooks]
