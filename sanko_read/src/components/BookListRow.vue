@@ -2,10 +2,11 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { ElMessage } from 'element-plus'
-import { MoreFilled, Reading, Select, InfoFilled } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { MoreFilled, Reading, Select, InfoFilled, Remove } from '@element-plus/icons-vue'
 import type { Book } from '@/types/book'
 import { useBooksStore } from '@/stores/books'
+import { useUserStore } from '@/stores/user'
 import HeartIcon from '@/components/HeartIcon.vue'
 import BookSelectCheckbox from '@/components/BookSelectCheckbox.vue'
 import BookCoverFace from '@/components/BookCoverFace.vue'
@@ -18,6 +19,7 @@ const props = defineProps<{
 
 const router = useRouter()
 const booksStore = useBooksStore()
+const userStore = useUserStore()
 const { selectionMode } = storeToRefs(booksStore)
 const menuVisible = ref(false)
 const showDetailDialog = ref(false)
@@ -41,6 +43,20 @@ const toggleFavorite = async (event: MouseEvent) => {
   )
 }
 
+const removeFromLibrary = async () => {
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  try {
+    await ElMessageBox.confirm('确定从书架移除此书？', '移出书架', { type: 'warning' })
+    await booksStore.removeBook(props.book.id)
+    ElMessage.success('已从书架移除')
+  } catch {
+    // 用户取消
+  }
+}
+
 const handleCommand = (command: string) => {
   menuVisible.value = false
   switch (command) {
@@ -49,6 +65,9 @@ const handleCommand = (command: string) => {
       break
     case 'bookshelf':
       showAddToShelfDialog.value = true
+      break
+    case 'remove':
+      void removeFromLibrary()
       break
     case 'multi':
       booksStore.enterSelectionMode(props.book.id)
@@ -108,6 +127,7 @@ const onAddToShelfSuccess = ({ shelfCount }: { shelfCount: number }) => {
             {{ isFavorited ? '从喜欢移除' : '添加到喜欢' }}
           </el-dropdown-item>
           <el-dropdown-item command="bookshelf" :icon="Reading">添加到书架</el-dropdown-item>
+          <el-dropdown-item command="remove" :icon="Remove">移出书架</el-dropdown-item>
           <el-dropdown-item command="multi" :icon="Select">多选</el-dropdown-item>
           <el-dropdown-item command="info" :icon="InfoFilled">详细信息</el-dropdown-item>
         </el-dropdown-menu>

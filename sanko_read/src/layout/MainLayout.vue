@@ -21,11 +21,11 @@ import BookSortDropdown from '@/components/BookSortDropdown.vue'
 import AppSettingsDialog from '@/components/AppSettingsDialog.vue'
 import AddBookDialog from '@/components/AddBookDialog.vue'
 import SankoLogo from '@/components/SankoLogo.vue'
+import { clearUserPersonalData, loadUserPersonalData } from '@/bootstrap'
 import { useUserStore } from '@/stores/user'
 import { useBooksStore } from '@/stores/books'
 import { useBookshelvesStore } from '@/stores/bookshelves'
 import { useSettingsStore } from '@/stores/settings'
-
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
@@ -86,6 +86,7 @@ const handleAddBook = () => {
 
 const handleLoginSuccess = () => {
   ElMessage.success(`欢迎回来，${userStore.username}`)
+  void loadUserPersonalData()
   if (pendingAddBook.value) {
     pendingAddBook.value = false
     showAddBookDialog.value = true
@@ -108,6 +109,7 @@ const goReadingHistory = () => {
 
 const handleLogout = async () => {
   await userStore.logout()
+  clearUserPersonalData()
   ElMessage.info('已退出登录')
   if (enableSoftwareProtection.value) {
     showLoginDialog.value = true
@@ -153,9 +155,11 @@ watch(
 
 watch(enableSoftwareProtection, (enabled) => {
   if (enabled) {
-    userStore.logout()
-    showLoginDialog.value = true
-    ElMessage.info('已启用软件保护，请登录后继续使用')
+    void userStore.logout().then(() => {
+      clearUserPersonalData()
+      showLoginDialog.value = true
+      ElMessage.info('已启用软件保护，请登录后继续使用')
+    })
   }
 })
 

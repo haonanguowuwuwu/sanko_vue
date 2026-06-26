@@ -27,6 +27,7 @@
 | 项 | 说明 |
 |----|------|
 | 环境变量 | `VITE_USE_MOCK`（在 `sanko_read/.env.development`） |
+| 联调本仓库小后端 | 复制 `sanko_read/.env.development.local.example` → `.env.development.local`，并启动 `sanko_server`（见 [sanko_server/README.md](../sanko_server/README.md)） |
 | 默认值 | `true`（见 `sanko_read/.env.example`） |
 | 代码逻辑 | `sanko_read/src/api/config.ts`：`USE_MOCK = env !== 'false'` |
 | 生效方式 | 每个 `sanko_read/src/api/*.ts` 在 Mock 时短路，不调用 `request()` |
@@ -74,7 +75,7 @@ cp .env.example .env.development
 编辑 `sanko_read/.env.development`：
 
 ```env
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=http://localhost:8083
 VITE_USE_MOCK=false
 ```
 
@@ -99,7 +100,7 @@ npm run dev
 
 1. 打开浏览器开发者工具 → **Network**
 2. 刷新页面或登录
-3. 应能看到对 `http://localhost:8080/api/...` 的请求
+3. 应能看到对 `http://localhost:8083/api/...` 的请求
 
 若仍无请求，检查：
 
@@ -179,7 +180,7 @@ P0 通后：可登录、导入、阅读、看书架。
 ### 第一步：后端起服务
 
 ```text
-http://localhost:8080
+http://localhost:8083
 ```
 
 可用 Apifox 按 `openapi.yaml` 自测，或 Knife4j `/doc.html`。

@@ -21,7 +21,7 @@ const selectedFile = ref<File | null>(null)
 const submitting = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
-const categoryOptions = ['学习资料', '娱乐小说', '出版', '其他']
+const categoryOptions = ['出版', '其他']
 
 const resetForm = () => {
   title.value = ''

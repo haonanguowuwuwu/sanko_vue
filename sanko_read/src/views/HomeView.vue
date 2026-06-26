@@ -1,9 +1,28 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { featuredBooks } from '@/data/catalogBooks'
+import { featuredBooks as staticFeaturedBooks } from '@/data/catalogBooks'
+import { fetchCatalogHome } from '@/api/catalog'
+import type { CatalogBook } from '@/types/catalog'
 import ChatPanel from '@/components/ChatPanel.vue'
 
 const router = useRouter()
+const featuredBooks = ref<CatalogBook[]>([...staticFeaturedBooks])
+const loading = ref(false)
+
+onMounted(async () => {
+  loading.value = true
+  try {
+    const home = await fetchCatalogHome()
+    if (home.featured?.length) {
+      featuredBooks.value = home.featured
+    }
+  } catch {
+    featuredBooks.value = [...staticFeaturedBooks]
+  } finally {
+    loading.value = false
+  }
+})
 
 const openBook = (id: string) => {
   router.push({ name: 'book-intro', params: { id } })
@@ -12,7 +31,8 @@ const openBook = (id: string) => {
 
 <template>
   <div class="home-page">
-    <section class="home-featured">
+    <section v-if="loading" class="home-featured home-featured--loading">加载中…</section>
+    <section v-else class="home-featured">
       <article
         v-for="book in featuredBooks"
         :key="book.id"
@@ -53,6 +73,12 @@ const openBook = (id: string) => {
   gap: 64px;
   flex-shrink: 0;
   padding-inline: var(--home-inset-featured);
+}
+
+.home-featured--loading {
+  justify-content: center;
+  color: var(--sanko-text-secondary);
+  font-size: 14px;
 }
 
 .home-featured__item {

@@ -8,6 +8,11 @@ export const useBookshelvesStore = defineStore('bookshelves', () => {
   const loading = ref(false)
   const initialized = ref(false)
 
+  function clearAll() {
+    shelves.value = []
+    initialized.value = false
+  }
+
   async function fetchAll() {
     loading.value = true
     try {
@@ -112,6 +117,7 @@ export const useBookshelvesStore = defineStore('bookshelves', () => {
     shelves,
     loading,
     initialized,
+    clearAll,
     fetchAll,
     getShelfById,
     addShelf,

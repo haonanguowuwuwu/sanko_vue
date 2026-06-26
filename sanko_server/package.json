@@ -1,0 +1,19 @@
+{
+  "name": "sanko_server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sanko Read 联调用 Node.js 小后端",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}

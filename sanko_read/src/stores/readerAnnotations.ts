@@ -52,6 +52,12 @@ export const useReaderAnnotationsStore = defineStore('readerAnnotations', () => 
     })
   }
 
+  function clearAll() {
+    highlights.value = []
+    bookmarks.value = []
+    initialized.value = false
+  }
+
   async function fetchAll() {
     loading.value = true
     try {
@@ -439,6 +445,7 @@ export const useReaderAnnotationsStore = defineStore('readerAnnotations', () => 
     bookmarks,
     loading,
     initialized,
+    clearAll,
     fetchAll,
     getHighlightsForBook,
     getHighlightsForChapter,

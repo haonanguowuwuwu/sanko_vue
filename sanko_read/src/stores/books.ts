@@ -5,6 +5,8 @@ import { formatAddedDate } from '@/types/book'
 import * as booksApi from '@/api/books'
 import { seedDemoAnnotationsIfNeeded } from '@/api/mock/demoAnnotations'
 import { useSettingsStore } from '@/stores/settings'
+import { useUserStore } from '@/stores/user'
+import { useBookshelvesStore } from '@/stores/bookshelves'
 
 export type SortField =
   | 'recent'
@@ -108,7 +110,24 @@ export const useBooksStore = defineStore('books', () => {
     sortOrder.value = order
   }
 
+  function clearAll() {
+    books.value = []
+    trashedBooks.value = []
+    favoriteIds.value = new Set()
+    selectedIds.value.clear()
+    selectionMode.value = false
+    lastReadMap.value = {}
+    searchQuery.value = ''
+    initialized.value = false
+  }
+
   async function fetchAll() {
+    const userStore = useUserStore()
+    if (!userStore.isLoggedIn) {
+      clearAll()
+      return
+    }
+
     loading.value = true
     try {
       const [bookList, trashList, favorites] = await Promise.all([
@@ -202,7 +221,9 @@ export const useBooksStore = defineStore('books', () => {
   async function removeBook(id: string) {
     await booksApi.deleteBook(id, true)
     books.value = books.value.filter((b) => b.id !== id)
+    trashedBooks.value = trashedBooks.value.filter((b) => b.id !== id)
     detachBookFromLibrary(id)
+    useBookshelvesStore().removeBookFromAllShelves(id)
   }
 
   async function permanentlyDeleteFromRecycleBin(id: string) {
@@ -338,6 +359,11 @@ export const useBooksStore = defineStore('books', () => {
       await fetchAll()
       return
     }
+    const userStore = useUserStore()
+    if (!userStore.isLoggedIn) {
+      books.value = []
+      return
+    }
     loading.value = true
     try {
       books.value = await booksApi.searchBooks(query)
@@ -384,6 +410,7 @@ export const useBooksStore = defineStore('books', () => {
     sortBookList,
     setSortField,
     setSortOrder,
+    clearAll,
     fetchAll,
     touchLastRead,
     updateProgress,

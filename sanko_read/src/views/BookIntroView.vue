@@ -27,6 +27,7 @@ const { isLoggedIn, requireLogin } = useRequireLogin()
 const book = ref<CatalogBook | null>(null)
 const loading = ref(true)
 const selectedEditionId = ref<string>('')
+const showAddToShelfDialog = ref(false)
 
 const selectedEdition = computed((): CatalogBookEdition | undefined => {
   if (!book.value?.editions?.length) return undefined
@@ -35,6 +36,14 @@ const selectedEdition = computed((): CatalogBookEdition | undefined => {
     book.value.editions[0]
   )
 })
+
+const isFavorited = computed(() =>
+  book.value ? booksStore.isFavorite(book.value.id) : false,
+)
+
+const isInLibrary = computed(() =>
+  book.value ? booksStore.books.some((b) => b.id === book.value!.id) : false,
+)
 
 const purchaseLabel = computed(() => {
   const type = book.value?.purchaseType
@@ -59,22 +68,35 @@ watch(
   },
   { immediate: true },
 )
-const liked = ref(false)
-const blocked = ref(false)
-const showAddToShelfDialog = ref(false)
 
 const goBack = () => {
   router.push('/')
 }
 
-const toggleLike = () => {
-  liked.value = !liked.value
-  ElMessage.success(liked.value ? '已添加到喜欢' : '已从喜欢移除')
+async function ensureCurrentBookInLibrary() {
+  if (!book.value || !selectedEdition.value) {
+    ElMessage.warning('请先选择书籍版本')
+    return null
+  }
+  const saved = await booksStore.ensureBookInLibrary(
+    catalogBookToLibraryBook(book.value, selectedEdition.value),
+  )
+  const seeded = seedDemoAnnotationsIfNeeded(saved.id, saved.format)
+  if (seeded) {
+    await annotationsStore.fetchAll()
+  }
+  return saved
 }
 
-const toggleBlock = () => {
-  blocked.value = !blocked.value
-  ElMessage.info(blocked.value ? '已加入屏蔽' : '已取消屏蔽')
+const toggleLike = () => {
+  if (!book.value) return
+  requireLogin(async () => {
+    await ensureCurrentBookInLibrary()
+    await booksStore.toggleFavorite(book.value!.id)
+    ElMessage.success(
+      booksStore.isFavorite(book.value!.id) ? '已添加到喜欢' : '已从喜欢移除',
+    )
+  }, '请先登录后再操作')
 }
 
 const startReading = () => {
@@ -85,13 +107,7 @@ const startReading = () => {
   }
   const readerPath = `/read/${book.value.id}`
   requireLogin(async () => {
-    const saved = await booksStore.ensureBookInLibrary(
-      catalogBookToLibraryBook(book.value!, selectedEdition.value),
-    )
-    const seeded = seedDemoAnnotationsIfNeeded(saved.id, saved.format)
-    if (seeded) {
-      await annotationsStore.fetchAll()
-    }
+    await ensureCurrentBookInLibrary()
     void router.push(readerPath)
   }, '请先登录后再阅读', readerPath)
 }
@@ -114,24 +130,23 @@ const downloadEdition = () => {
 }
 
 const openAddToShelf = () => {
-  requireLogin(() => {
+  requireLogin(async () => {
+    const wasInLibrary = isInLibrary.value
+    const saved = await ensureCurrentBookInLibrary()
+    if (!saved) return
+    if (!wasInLibrary) {
+      ElMessage.success('已加入书架')
+    }
     showAddToShelfDialog.value = true
   }, '请先登录后再加入书架')
 }
 
-const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
+const onAddToShelfSuccess = ({ shelfCount }: { shelfCount: number }) => {
   if (!book.value) return
   if (shelfCount > 0) {
-    const saved = await booksStore.ensureBookInLibrary(
-      catalogBookToLibraryBook(book.value, selectedEdition.value),
-    )
-    const seeded = seedDemoAnnotationsIfNeeded(saved.id, saved.format)
-    if (seeded) {
-      await annotationsStore.fetchAll()
-    }
-    ElMessage.success('已加入书架')
+    ElMessage.success('已更新书架分组')
   } else {
-    ElMessage.success('已从书架移除')
+    ElMessage.success('已更新书架分组')
   }
 }
 </script>
@@ -145,19 +160,6 @@ const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
     <header class="book-intro__toolbar">
       <button type="button" class="book-intro__back" aria-label="返回首页" @click="goBack">
         <el-icon :size="20"><ArrowLeft /></el-icon>
-      </button>
-      <button
-        type="button"
-        class="book-intro__shield"
-        :class="{ 'book-intro__shield--active': blocked }"
-        @click="toggleBlock"
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-          <path
-            d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v5.7c0 4.54-3.07 8.83-7 9.93-3.93-1.1-7-5.39-7-9.93V6.3l7-3.12z"
-          />
-        </svg>
-        加入屏蔽
       </button>
     </header>
 
@@ -219,16 +221,16 @@ const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
 
       <button type="button" class="book-intro__shelf" @click="openAddToShelf">
         <el-icon :size="18"><Reading /></el-icon>
-        加入书架
+        {{ isInLibrary ? '管理书架' : '加入书架' }}
       </button>
       <button
         type="button"
         class="book-intro__like"
-        :class="{ 'book-intro__like--active': liked }"
+        :class="{ 'book-intro__like--active': isFavorited }"
         @click="toggleLike"
       >
-        <HeartIcon :size="18" :filled="liked" />
-        喜欢
+        <HeartIcon :size="18" :filled="isFavorited" />
+        {{ isFavorited ? '已喜欢' : '喜欢' }}
       </button>
       <button
         type="button"
@@ -285,7 +287,6 @@ const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
 .book-intro__toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 20px;
 }
 
@@ -305,27 +306,6 @@ const onAddToShelfSuccess = async ({ shelfCount }: { shelfCount: number }) => {
 
 .book-intro__back:hover {
   background: rgba(0, 0, 0, 0.05);
-}
-
-.book-intro__shield {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border: 1px solid var(--sanko-green);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--sanko-green);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.book-intro__shield:hover,
-.book-intro__shield--active {
-  background: var(--sanko-green);
-  color: #fff;
 }
 
 .book-intro__hero {

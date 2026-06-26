@@ -7,6 +7,7 @@
 | 文件 | 读者 | 说明 |
 |------|------|------|
 | [**INTEGRATION.md**](./INTEGRATION.md) | **后端 / 前端（联调必读）** | 如何关闭 Mock、验证真接口、分期联调步骤 |
+| [**FRONTEND_DATA_AND_MOCK.md**](./FRONTEND_DATA_AND_MOCK.md) | **前端 / 后端** | 各页面需要什么数据、哪些仍是内置 Mock / 静态、对接顺序 |
 | [**BACKEND_API.md**](./BACKEND_API.md) | **后端（首选）** | 完整需求：数据模型、全部接口、页面映射、实现优先级 |
 | [API.md](./API.md) | 后端 / 前端 | 精简版接口说明 |
 | [openapi.yaml](./openapi.yaml) | 后端 / 测试 | OpenAPI 3.0 契约，可导入 Apifox / Postman / Knife4j |
@@ -23,6 +24,7 @@
 
 | 模块 | 路径 |
 |------|------|
+| **联调小后端** | [`sanko_server/`](../sanko_server/)（Node.js Express，与前端分离） |
 | 请求封装 | `sanko_read/src/api/request.ts` |
 | 各模块 API | `sanko_read/src/api/*.ts` |
 | 类型定义 | `sanko_read/src/api/types.ts`、`sanko_read/src/types/` |

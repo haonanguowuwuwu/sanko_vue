@@ -14,7 +14,7 @@ Sanko Read 是阅读类 Web 应用。联调时前端设置：
 
 ```env
 VITE_USE_MOCK=false
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=http://localhost:8083
 ```
 
 接口分为两类：
@@ -31,7 +31,7 @@ VITE_API_BASE_URL=http://localhost:8080
 ### 2.1 Base URL
 
 ```
-http://localhost:8080
+http://localhost:8083
 ```
 
 ### 2.2 统一响应格式

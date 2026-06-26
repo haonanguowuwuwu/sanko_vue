@@ -7,15 +7,22 @@ import { useBookshelvesStore } from '@/stores/bookshelves'
 import { useReaderAnnotationsStore } from '@/stores/readerAnnotations'
 import { useSettingsStore } from '@/stores/settings'
 
-export async function bootstrapApp() {
+export function clearUserPersonalData() {
+  useBooksStore().clearAll()
+  useBookshelvesStore().clearAll()
+  useReaderAnnotationsStore().clearAll()
+}
+
+export async function loadUserPersonalData() {
   const userStore = useUserStore()
+  if (!userStore.isLoggedIn) {
+    clearUserPersonalData()
+    return
+  }
+
   const booksStore = useBooksStore()
   const bookshelvesStore = useBookshelvesStore()
   const annotationsStore = useReaderAnnotationsStore()
-  const settingsStore = useSettingsStore()
-
-  await userStore.init()
-  await settingsStore.fetchAll()
 
   await Promise.all([
     booksStore.fetchAll(),
@@ -33,6 +40,23 @@ export async function bootstrapApp() {
     if (seeded) {
       await annotationsStore.fetchAll()
     }
+  }
+}
+
+export async function bootstrapApp() {
+  const userStore = useUserStore()
+  const settingsStore = useSettingsStore()
+
+  await userStore.init()
+  await settingsStore.fetchAll()
+
+  if (userStore.isLoggedIn) {
+    await loadUserPersonalData()
+  } else {
+    clearUserPersonalData()
+  }
+
+  if (USE_MOCK) {
     settingsApiSyncMock(settingsStore)
   }
 }
@@ -42,15 +66,7 @@ function settingsApiSyncMock(settingsStore: ReturnType<typeof useSettingsStore>)
 }
 
 export async function reloadAfterRestore() {
-  const booksStore = useBooksStore()
-  const bookshelvesStore = useBookshelvesStore()
-  const annotationsStore = useReaderAnnotationsStore()
   const settingsStore = useSettingsStore()
-
   await settingsStore.fetchAll()
-  await Promise.all([
-    booksStore.fetchAll(),
-    bookshelvesStore.fetchAll(),
-    annotationsStore.fetchAll(),
-  ])
+  await loadUserPersonalData()
 }

@@ -45,7 +45,13 @@ export interface UseKookitRenditionOptions {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type KookitRenditionInstance = any
 
-const CONTAINER_READY_MAX_FRAMES = 60
+const CONTAINER_READY_MAX_FRAMES = 90
+const RENDER_RETRY_MAX = 5
+
+function isReplaceChildrenError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error)
+  return /replaceChildren/i.test(msg)
+}
 
 async function waitForReaderContainer(el: HTMLElement): Promise<void> {
   await nextTick()
@@ -81,11 +87,25 @@ async function renderToRendition(
   el: HTMLElement,
   bookLocation?: BookRecordLocation,
 ): Promise<void> {
-  if (bookLocation != null) {
-    await r.renderTo(el, bookLocation)
-    return
+  for (let attempt = 0; attempt < RENDER_RETRY_MAX; attempt++) {
+    if (!el.isConnected) {
+      await waitForReaderContainer(el)
+    }
+    try {
+      if (bookLocation != null) {
+        await r.renderTo(el, bookLocation)
+      } else {
+        await r.renderTo(el)
+      }
+      return
+    } catch (error) {
+      if (!isReplaceChildrenError(error) || attempt === RENDER_RETRY_MAX - 1) {
+        throw error
+      }
+      await nextTick()
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    }
   }
-  await r.renderTo(el)
 }
 
 async function restoreReadingPosition(
@@ -185,7 +205,18 @@ export function useKookitRendition(
   let selectionCleanup: (() => void) | null = null
   let refreshPdfSubDocBindings: (() => void) | null = null
   let refreshEpubIframeBindings: (() => void) | null = null
+  let disposed = false
   const annotationsStore = useReaderAnnotationsStore()
+
+  async function safeRenditionNav(action: () => Promise<void> | void): Promise<void> {
+    if (disposed || loading.value || !rendition.value) return
+    try {
+      await action()
+    } catch (error) {
+      if (isReplaceChildrenError(error)) return
+      throw error
+    }
+  }
 
   function applyReaderStyles(bookKey: string) {
     const r = rendition.value
@@ -875,21 +906,28 @@ export function useKookitRendition(
     if (!r?.on) return
 
     const onLocationChange = async () => {
-      const pos = r.getPosition?.()
-      if (pos) {
-        setRecordLocation(options.value.bookId, pos as BookRecordLocation)
-        updateCurrentSpreadIndex()
-        const title = pos.chapterTitle ?? pos.chapter
-        chapterTitle.value = typeof title === 'string' ? title : ''
+      if (disposed || !rendition.value || !pageAreaRef.value?.isConnected) return
+      try {
+        const pos = r.getPosition?.()
+        if (pos) {
+          setRecordLocation(options.value.bookId, pos as BookRecordLocation)
+          updateCurrentSpreadIndex()
+          const title = pos.chapterTitle ?? pos.chapter
+          chapterTitle.value = typeof title === 'string' ? title : ''
+        }
+        if (isPdfFormat(options.value.format)) {
+          applyPdfPageBorderStyles(r)
+        }
+        if (supportsAnnotationHighlight(options.value.format)) {
+          bindTextSelection(r)
+          await applyStoredHighlights()
+        }
+        await syncProgressDisplay()
+      } catch (error) {
+        if (!isReplaceChildrenError(error)) {
+          throw error
+        }
       }
-      if (isPdfFormat(options.value.format)) {
-        applyPdfPageBorderStyles(r)
-      }
-      if (supportsAnnotationHighlight(options.value.format)) {
-        bindTextSelection(r)
-        await applyStoredHighlights()
-      }
-      await syncProgressDisplay()
     }
 
     r.on('rendered', onLocationChange)
@@ -897,6 +935,7 @@ export function useKookitRendition(
   }
 
   async function open(buffer: ArrayBuffer) {
+    disposed = false
     loading.value = true
     error.value = null
     const format = options.value.format.toUpperCase()
@@ -991,13 +1030,17 @@ export function useKookitRendition(
   }
 
   async function prev() {
-    await rendition.value?.prev?.()
-    updateCurrentSpreadIndex()
+    await safeRenditionNav(async () => {
+      await rendition.value?.prev?.()
+      updateCurrentSpreadIndex()
+    })
   }
 
   async function next() {
-    await rendition.value?.next?.()
-    updateCurrentSpreadIndex()
+    await safeRenditionNav(async () => {
+      await rendition.value?.next?.()
+      updateCurrentSpreadIndex()
+    })
   }
 
   async function goToChapterDocIndex(index: number) {
@@ -1107,6 +1150,7 @@ export function useKookitRendition(
   }
 
   function destroy() {
+    disposed = true
     selectionCleanup?.()
     selectionCleanup = null
     refreshPdfSubDocBindings = null

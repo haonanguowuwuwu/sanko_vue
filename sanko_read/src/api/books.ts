@@ -139,11 +139,8 @@ export async function ensureBook(book: Book): Promise<Book> {
     seedDemoAnnotationsIfNeeded(book.id, book.format)
     return mockDelay(book)
   }
-  try {
-    return await request<Book>(`/api/books/${book.id}`)
-  } catch {
-    return request<Book>('/api/books', { method: 'POST', body: book })
-  }
+  // 小后端 POST /api/books 已支持按 id 幂等创建，避免 GET 404 噪音
+  return request<Book>('/api/books', { method: 'POST', body: book })
 }
 
 export async function trashBook(id: string): Promise<void> {
