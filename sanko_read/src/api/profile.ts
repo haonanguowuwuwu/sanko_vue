@@ -1,6 +1,6 @@
 import { USE_MOCK } from '@/api/config'
 import { request } from '@/api/request'
-import type { PointsOrder, PointsSummary } from '@/types/profile'
+import type { AccountProfile, PointsOrder, PointsSummary } from '@/types/profile'
 import { mockDelay, mockState } from '@/api/mock/state'
 
 export async function fetchPointsSummary(): Promise<PointsSummary> {
@@ -72,4 +72,17 @@ export async function rechargePoints(
     method: 'POST',
     body: { amount, method },
   })
+}
+
+export async function fetchAccountProfile(): Promise<AccountProfile> {
+  if (USE_MOCK) {
+    return mockDelay({
+      id: 'mock-user',
+      username: mockState.username ?? '用户',
+      email: `${mockState.username ?? 'user'}@sanko.local`,
+      registeredAt: '2026-01-15',
+      pointsBalance: mockState.pointsSummary.balance,
+    })
+  }
+  return request<AccountProfile>('/api/profile/account')
 }

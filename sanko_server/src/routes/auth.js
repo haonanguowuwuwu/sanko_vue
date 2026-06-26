@@ -28,7 +28,13 @@ router.get('/me', optionalAuth, (req, res) => {
   if (!req.user) {
     return fail(res, '未登录', 401, 401)
   }
-  res.json(ok(req.user))
+  res.json(
+    ok({
+      ...req.user,
+      email: `${req.user.username}@sanko.local`,
+      registeredAt: '2026-01-15',
+    }),
+  )
 })
 
 export default router

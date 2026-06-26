@@ -52,6 +52,12 @@ const router = createRouter({
           component: () => import('@/views/ProfilePointsView.vue'),
         },
         {
+          path: 'profile/account',
+          name: 'profile-account',
+          meta: { requiresAuth: true },
+          component: () => import('@/views/ProfileAccountView.vue'),
+        },
+        {
           path: 'profile/history',
           name: 'reading-history',
           meta: { requiresAuth: true },

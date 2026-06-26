@@ -16,6 +16,7 @@ import { useUserStore } from '@/stores/user'
 import { useRequireLogin } from '@/composables/useRequireLogin'
 import BookCommentComposer from '@/components/book/BookCommentComposer.vue'
 import BookCommentReportDialog from '@/components/book/BookCommentReportDialog.vue'
+import StarRatingInput from '@/components/book/StarRatingInput.vue'
 
 const props = defineProps<{
   bookId?: string
@@ -33,6 +34,7 @@ const useRemote = computed(() => Boolean(props.bookId))
 const comments = ref<CatalogComment[]>([])
 const commentsLoading = ref(false)
 const newCommentText = ref('')
+const newCommentRating = ref(5)
 const replyText = ref('')
 const replyingToId = ref<string | null>(null)
 const expandedReplies = ref<Record<string, boolean>>({})
@@ -76,6 +78,7 @@ watch(
     replyingToId.value = null
     replyText.value = ''
     newCommentText.value = ''
+    newCommentRating.value = 5
     void loadComments()
   },
   { immediate: true },
@@ -168,7 +171,7 @@ const submitComment = async () => {
 
   try {
     if (useRemote.value && props.bookId) {
-      const comment = await postCatalogComment(props.bookId, content)
+      const comment = await postCatalogComment(props.bookId, content, newCommentRating.value)
       comments.value.unshift(comment)
     } else {
       comments.value.unshift({
@@ -178,10 +181,12 @@ const submitComment = async () => {
         date: new Date().toISOString().slice(0, 10),
         likes: 0,
         replyCount: 0,
+        rating: newCommentRating.value,
         replies: [],
       })
     }
     newCommentText.value = ''
+    newCommentRating.value = 5
     ElMessage.success('评论已发送')
   } catch (error) {
     const message = error instanceof Error ? error.message : '发送失败'
@@ -265,6 +270,8 @@ const onReportConfirm = async (reason: string) => {
     <BookCommentComposer
       v-if="canInteract"
       v-model="newCommentText"
+      v-model:rating="newCommentRating"
+      show-rating
       @submit="submitComment"
     />
     <p v-else class="book-comments__guest-hint">登录后即可发表评论、回复与举报</p>
@@ -326,6 +333,9 @@ const onReportConfirm = async (reason: string) => {
             </div>
           </div>
           <p class="book-comment__content">{{ comment.content }}</p>
+          <div v-if="comment.rating" class="book-comment__rating">
+            <StarRatingInput :model-value="comment.rating" readonly />
+          </div>
           <div class="book-comment__footer">
             <span class="book-comment__date">{{ comment.date }}</span>
             <button
@@ -512,6 +522,10 @@ const onReportConfirm = async (reason: string) => {
   font-size: 14px;
   line-height: 1.6;
   color: var(--sanko-text);
+}
+
+.book-comment__rating {
+  margin-bottom: 8px;
 }
 
 .book-comment__footer {

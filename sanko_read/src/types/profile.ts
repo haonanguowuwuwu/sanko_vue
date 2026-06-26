@@ -18,6 +18,14 @@ export interface PointsOrder {
   status: PointsOrderStatus
 }
 
+export interface AccountProfile {
+  id: string
+  username: string
+  email: string
+  registeredAt: string
+  pointsBalance: number
+}
+
 export interface RechargePreset {
   amount: number
   color: string

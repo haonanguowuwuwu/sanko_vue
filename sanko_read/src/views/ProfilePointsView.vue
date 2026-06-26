@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { fetchPointsOrders, fetchPointsSummary, rechargePoints } from '@/api/profile'
 import { POINTS_RULES, RECHARGE_PRESETS, type PointsOrder, type PointsOrderType } from '@/types/profile'
 import { useUserStore } from '@/stores/user'
+import { useProfileStore } from '@/stores/profile'
 
 type TabKey = 'overview' | 'recharge' | 'orders'
 type FilterType = 'all' | PointsOrderType
@@ -12,6 +13,7 @@ type FilterType = 'all' | PointsOrderType
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const profileStore = useProfileStore()
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'overview', label: '积分总览' },
@@ -116,6 +118,7 @@ const handlePay = async () => {
     selectedAmount.value = null
     customAmount.value = ''
     await loadSummary()
+    await profileStore.loadPoints()
     if (activeTab.value === 'orders') await loadOrders()
   } catch (error) {
     const message = error instanceof Error ? error.message : '充值失败'

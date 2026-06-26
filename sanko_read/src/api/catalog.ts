@@ -152,7 +152,11 @@ export async function fetchCatalogComments(bookId: string): Promise<CatalogComme
   return request<CatalogCommentPage>(`/api/catalog/books/${bookId}/comments`)
 }
 
-export async function postCatalogComment(bookId: string, content: string): Promise<CatalogComment> {
+export async function postCatalogComment(
+  bookId: string,
+  content: string,
+  rating?: number,
+): Promise<CatalogComment> {
   if (USE_MOCK) {
     const comment: CatalogComment = {
       id: `c-${Date.now()}`,
@@ -163,12 +167,13 @@ export async function postCatalogComment(bookId: string, content: string): Promi
       replyCount: 0,
       replies: [],
     }
+    if (rating && rating > 0) comment.rating = rating
     mockCommentsForBook(bookId).unshift(comment)
     return mockDelay(comment)
   }
   return request<CatalogComment>(`/api/catalog/books/${bookId}/comments`, {
     method: 'POST',
-    body: { content },
+    body: { content, rating },
   })
 }
 

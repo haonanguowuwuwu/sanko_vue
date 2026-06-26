@@ -5,6 +5,8 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft, Reading } from '@element-plus/icons-vue'
 import HeartIcon from '@/components/HeartIcon.vue'
 import BookCommentSection from '@/components/book/BookCommentSection.vue'
+import BookRatingBadge from '@/components/book/BookRatingBadge.vue'
+import ReaderAiPanel from '@/components/reader/ReaderAiPanel.vue'
 import AddToBookshelfDialog from '@/components/AddToBookshelfDialog.vue'
 import { useBooksStore } from '@/stores/books'
 import { useReaderAnnotationsStore } from '@/stores/readerAnnotations'
@@ -28,6 +30,10 @@ const book = ref<CatalogBook | null>(null)
 const loading = ref(true)
 const selectedEditionId = ref<string>('')
 const showAddToShelfDialog = ref(false)
+const showAiPanel = ref(false)
+
+const bookRating = computed(() => book.value?.rating ?? 0)
+const bookRatingMax = computed(() => book.value?.ratingMax ?? 5)
 
 const selectedEdition = computed((): CatalogBookEdition | undefined => {
   if (!book.value?.editions?.length) return undefined
@@ -149,6 +155,12 @@ const onAddToShelfSuccess = ({ shelfCount }: { shelfCount: number }) => {
     ElMessage.success('已更新书架分组')
   }
 }
+
+const toggleAi = () => {
+  requireLogin(() => {
+    showAiPanel.value = !showAiPanel.value
+  }, '请先登录后再使用 AI 助手')
+}
 </script>
 
 <template>
@@ -176,6 +188,12 @@ const onAddToShelfSuccess = ({ shelfCount }: { shelfCount: number }) => {
         <div class="book-intro__meta-row">
           <dt>作者：</dt>
           <dd>{{ book.author }}</dd>
+        </div>
+        <div v-if="bookRating > 0" class="book-intro__meta-row">
+          <dt>评分：</dt>
+          <dd>
+            <BookRatingBadge :rating="bookRating" :max="bookRatingMax" />
+          </dd>
         </div>
         <div class="book-intro__meta-row">
           <dt>分类：</dt>
@@ -242,6 +260,13 @@ const onAddToShelfSuccess = ({ shelfCount }: { shelfCount: number }) => {
       </button>
       <button
         type="button"
+        class="book-intro__ai"
+        @click="toggleAi"
+      >
+        AI 助手
+      </button>
+      <button
+        type="button"
         class="book-intro__read"
         :disabled="!selectedEdition"
         @click="startReading"
@@ -261,6 +286,13 @@ const onAddToShelfSuccess = ({ shelfCount }: { shelfCount: number }) => {
       v-model:visible="showAddToShelfDialog"
       :book-ids="[book.id]"
       @success="onAddToShelfSuccess"
+    />
+
+    <ReaderAiPanel
+      v-if="book"
+      v-model:visible="showAiPanel"
+      :book-id="book.id"
+      source="book"
     />
   </div>
 
@@ -482,6 +514,23 @@ const onAddToShelfSuccess = ({ shelfCount }: { shelfCount: number }) => {
 
 .book-intro__like:hover {
   opacity: 0.85;
+}
+
+.book-intro__ai {
+  padding: 10px 20px;
+  border: 1px solid #ccc;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--sanko-text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.book-intro__ai:hover {
+  border-color: var(--sanko-green);
+  color: var(--sanko-green);
 }
 
 .book-intro__read {

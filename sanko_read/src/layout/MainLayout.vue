@@ -20,15 +20,18 @@ import IconTooltip from '@/components/IconTooltip.vue'
 import BookSortDropdown from '@/components/BookSortDropdown.vue'
 import AppSettingsDialog from '@/components/AppSettingsDialog.vue'
 import AddBookDialog from '@/components/AddBookDialog.vue'
+import AnnouncementDialog from '@/components/AnnouncementDialog.vue'
 import SankoLogo from '@/components/SankoLogo.vue'
 import { clearUserPersonalData, loadUserPersonalData } from '@/bootstrap'
 import { useUserStore } from '@/stores/user'
+import { useProfileStore } from '@/stores/profile'
 import { useBooksStore } from '@/stores/books'
 import { useBookshelvesStore } from '@/stores/bookshelves'
 import { useSettingsStore } from '@/stores/settings'
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const profileStore = useProfileStore()
 const booksStore = useBooksStore()
 const bookshelvesStore = useBookshelvesStore()
 const settingsStore = useSettingsStore()
@@ -42,6 +45,7 @@ const showLoginDialog = ref(false)
 const showManageBookshelfDialog = ref(false)
 const showSettingsDialog = ref(false)
 const showAddBookDialog = ref(false)
+const showAnnouncementDialog = ref(false)
 const pendingAddBook = ref(false)
 const pendingRedirect = ref<string | null>(null)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
@@ -63,7 +67,9 @@ const isLocalLibraryActive = computed(() => route.name === 'library')
 
 const isHomeRoute = computed(() => route.name === 'home' || route.name === 'book-intro')
 const isCategoriesRoute = computed(() => route.name === 'categories')
-const isProfileRoute = computed(() => route.name === 'profile-points')
+const isProfileRoute = computed(
+  () => route.name === 'profile-points' || route.name === 'profile-account',
+)
 const isReadingHistoryRoute = computed(() => route.name === 'reading-history')
 
 const openManageBookshelf = () => {
@@ -86,7 +92,8 @@ const handleAddBook = () => {
 
 const handleLoginSuccess = () => {
   ElMessage.success(`欢迎回来，${userStore.username}`)
-  void loadUserPersonalData()
+  void loadUserPersonalData().then(() => profileStore.loadPoints())
+  showAnnouncementDialog.value = true
   if (pendingAddBook.value) {
     pendingAddBook.value = false
     showAddBookDialog.value = true
@@ -103,6 +110,10 @@ const goProfilePoints = () => {
   void router.push({ name: 'profile-points' })
 }
 
+const goProfileAccount = () => {
+  void router.push({ name: 'profile-account' })
+}
+
 const goReadingHistory = () => {
   void router.push({ name: 'reading-history' })
 }
@@ -110,6 +121,7 @@ const goReadingHistory = () => {
 const handleLogout = async () => {
   await userStore.logout()
   clearUserPersonalData()
+  profileStore.clear()
   ElMessage.info('已退出登录')
   if (enableSoftwareProtection.value) {
     showLoginDialog.value = true
@@ -167,6 +179,9 @@ onMounted(() => {
   if (enableSoftwareProtection.value && !userStore.isLoggedIn) {
     showLoginDialog.value = true
   }
+  if (userStore.isLoggedIn) {
+    void profileStore.loadPoints()
+  }
 })
 </script>
 
@@ -213,13 +228,22 @@ onMounted(() => {
         <el-button v-if="!userStore.isLoggedIn" class="login-btn" text @click="openLoginDialog">
           登录
         </el-button>
-        <el-dropdown v-else trigger="click" popper-class="user-dropdown-popper">
+        <button
+          v-if="userStore.isLoggedIn"
+          type="button"
+          class="header-points"
+          @click="goProfilePoints"
+        >
+          积分 {{ profileStore.pointsBalance.toLocaleString() }}
+        </button>
+        <el-dropdown v-if="userStore.isLoggedIn" trigger="click" popper-class="user-dropdown-popper">
           <button type="button" class="user-profile-trigger">
             <span class="user-avatar" aria-hidden="true" />
             <span class="user-name">{{ userStore.username }}</span>
           </button>
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item @click="goProfileAccount">账号信息</el-dropdown-item>
               <el-dropdown-item @click="goProfilePoints">我的积分</el-dropdown-item>
               <el-dropdown-item @click="goReadingHistory">阅读历史</el-dropdown-item>
               <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
@@ -312,6 +336,7 @@ onMounted(() => {
     <ManageBookshelfDialog v-model:visible="showManageBookshelfDialog" />
     <AppSettingsDialog v-model:visible="showSettingsDialog" />
     <AddBookDialog v-model:visible="showAddBookDialog" />
+    <AnnouncementDialog v-model:visible="showAnnouncementDialog" />
   </el-container>
 </template>
 
@@ -397,6 +422,23 @@ onMounted(() => {
   color: var(--sanko-text);
   font-size: 14px;
   margin-left: 4px;
+}
+
+.header-points {
+  margin-left: 4px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(232, 163, 23, 0.12);
+  color: #c8870a;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.header-points:hover {
+  background: rgba(232, 163, 23, 0.2);
 }
 
 .user-btn {

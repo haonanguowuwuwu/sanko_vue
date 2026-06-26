@@ -7,6 +7,8 @@ export interface ApiResponse<T> {
 export interface UserInfo {
   id: string
   username: string
+  email?: string
+  registeredAt?: string
 }
 
 export interface AuthResult {

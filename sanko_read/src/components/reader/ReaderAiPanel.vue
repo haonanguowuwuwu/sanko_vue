@@ -11,6 +11,7 @@ interface ChatMessage {
 const props = defineProps<{
   visible: boolean
   bookId?: string
+  source?: 'reader' | 'book'
 }>()
 
 const emit = defineEmits<{
@@ -60,7 +61,7 @@ const handleSend = async () => {
     const response = await sendChatMessage({
       message: text,
       history,
-      source: 'reader',
+      source: props.source ?? 'reader',
       bookId: props.bookId,
     })
     messages.value.push({ role: 'assistant', content: response.reply })

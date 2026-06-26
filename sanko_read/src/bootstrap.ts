@@ -2,6 +2,7 @@ import { USE_MOCK } from '@/api/config'
 import { mockState } from '@/api/mock/state'
 import { seedDemoAnnotationsIfNeeded } from '@/api/mock/demoAnnotations'
 import { useUserStore } from '@/stores/user'
+import { useProfileStore } from '@/stores/profile'
 import { useBooksStore } from '@/stores/books'
 import { useBookshelvesStore } from '@/stores/bookshelves'
 import { useReaderAnnotationsStore } from '@/stores/readerAnnotations'
@@ -11,6 +12,7 @@ export function clearUserPersonalData() {
   useBooksStore().clearAll()
   useBookshelvesStore().clearAll()
   useReaderAnnotationsStore().clearAll()
+  useProfileStore().clear()
 }
 
 export async function loadUserPersonalData() {
@@ -28,6 +30,7 @@ export async function loadUserPersonalData() {
     booksStore.fetchAll(),
     bookshelvesStore.fetchAll(),
     annotationsStore.fetchAll(),
+    useProfileStore().loadPoints(),
   ])
 
   if (USE_MOCK) {

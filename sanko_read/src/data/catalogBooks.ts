@@ -12,6 +12,7 @@ const santiComments = [
     date: '2026-06-02',
     likes: 30,
     replyCount: 2,
+    rating: 5,
     replies: [
       {
         id: 'c1-r1',
@@ -38,6 +39,7 @@ const santiComments = [
     date: '2026-06-02',
     likes: 30,
     replyCount: 4,
+    rating: 4,
     replies: [
       {
         id: 'c2-r1',
@@ -103,6 +105,8 @@ export const santiBook: CatalogBook = {
   tags: ['科幻', '硬核', '人文思考'],
   synopsis:
     '展现了残酷的宇宙社会结构，以及人类在面对未知文明时的挣扎与抉择。地球文明向宇宙发出第一声啼鸣，取得了探寻外星文明的突破性进展。三体人利用超技术锁死了地球的基础科学，庞大的宇宙舰队杀向地球…',
+  rating: 5.0,
+  ratingMax: 5.0,
   comments: santiComments,
   editions: santiEditions,
 }

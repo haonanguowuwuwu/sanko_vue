@@ -12,7 +12,9 @@ import catalogRoutes from './routes/catalog.js'
 import annotationsRoutes from './routes/annotations.js'
 import bookmarksRoutes from './routes/bookmarks.js'
 import profileRoutes from './routes/profile.js'
+import profileAccountRoutes from './routes/profileAccount.js'
 import chatRoutes from './routes/chat.js'
+import announcementRoutes from './routes/announcement.js'
 import { ok } from './response.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -42,7 +44,9 @@ app.use('/api/catalog', catalogRoutes)
 app.use('/api/annotations', annotationsRoutes)
 app.use('/api/bookmarks', bookmarksRoutes)
 app.use('/api/profile/points', profileRoutes)
+app.use('/api/profile', profileAccountRoutes)
 app.use('/api/chat', chatRoutes)
+app.use('/api/announcement', announcementRoutes)
 
 app.use((_req, res) => {
   res.status(404).json({ code: 404, message: '接口不存在', data: null })

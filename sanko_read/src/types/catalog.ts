@@ -5,6 +5,8 @@ export interface CatalogComment {
   date: string
   likes: number
   replyCount: number
+  /** 用户对该书的评分（1–5），仅主评论可能有 */
+  rating?: number
   replies?: CatalogComment[]
 }
 
@@ -27,6 +29,9 @@ export interface CatalogBook {
   purchaseType?: 'free' | 'paid'
   tags?: string[]
   synopsis?: string
+  /** 综合评分，满分默认 5 */
+  rating?: number
+  ratingMax?: number
   comments?: CatalogComment[]
   /** 同一书籍条目下的多种格式 */
   editions?: CatalogBookEdition[]

@@ -96,6 +96,8 @@ router.post('/books/:bookId/comments', requireAuth, (req, res) => {
     replyCount: 0,
     replies: [],
   }
+  const rating = Number(req.body?.rating)
+  if (rating >= 1 && rating <= 5) comment.rating = rating
   getBookComments(req.params.bookId).unshift(comment)
   res.json(ok(comment))
 })

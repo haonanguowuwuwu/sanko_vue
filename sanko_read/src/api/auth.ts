@@ -43,7 +43,12 @@ export async function logout(): Promise<void> {
 export async function fetchMe(): Promise<UserInfo | null> {
   if (USE_MOCK) {
     if (!mockState.token || !mockState.username) return mockDelay(null)
-    return mockDelay({ id: 'mock-user', username: mockState.username })
+    return mockDelay({
+      id: 'mock-user',
+      username: mockState.username,
+      email: `${mockState.username}@sanko.local`,
+      registeredAt: '2026-01-15',
+    })
   }
 
   try {

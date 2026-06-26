@@ -1,12 +1,17 @@
 <script setup lang="ts">
+import StarRatingInput from '@/components/book/StarRatingInput.vue'
+
 const props = defineProps<{
   modelValue: string
   placeholder?: string
   compact?: boolean
+  showRating?: boolean
+  rating?: number
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  'update:rating': [value: number]
   submit: []
 }>()
 
@@ -22,6 +27,13 @@ const submit = () => {
 
 <template>
   <div class="comment-composer" :class="{ 'comment-composer--compact': compact }">
+    <div v-if="showRating" class="comment-composer__rating">
+      <span class="comment-composer__rating-label">评分</span>
+      <StarRatingInput
+        :model-value="rating ?? 5"
+        @update:model-value="emit('update:rating', $event)"
+      />
+    </div>
     <textarea
       :value="modelValue"
       class="comment-composer__input"
@@ -38,6 +50,19 @@ const submit = () => {
 <style scoped>
 .comment-composer {
   margin-bottom: 20px;
+}
+
+.comment-composer__rating {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.comment-composer__rating-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sanko-text-secondary);
 }
 
 .comment-composer--compact {
