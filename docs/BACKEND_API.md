@@ -11,12 +11,24 @@
 
 ## 1. 概述
 
-Sanko Read 是阅读类 Web 应用。联调时前端设置：
+Sanko Read 是阅读类 Web 应用。联调时前端使用小后端，**Mock 代码保留，通过命令或环境变量切换**：
+
+```bash
+# 终端 1
+cd sanko_server && npm run dev
+
+# 终端 2 — 联调
+cd sanko_read && npm run dev:api
+```
+
+等价环境变量（见 `sanko_read/.env.api` 或 `.env.development.local`）：
 
 ```env
 VITE_USE_MOCK=false
-VITE_API_BASE_URL=http://localhost:8083
+VITE_API_BASE_URL=http://127.0.0.1:8083
 ```
+
+内置 Mock：`npm run dev:mock`。详见 [INTEGRATION.md](./INTEGRATION.md)。
 
 接口分为两类：
 
@@ -32,8 +44,10 @@ VITE_API_BASE_URL=http://localhost:8083
 ### 2.1 Base URL
 
 ```
-http://localhost:8083
+http://127.0.0.1:8083
 ```
+
+（小后端 CORS 同时允许 `localhost` 与 `127.0.0.1` 的 5173 端口；Windows 联调推荐统一使用 `127.0.0.1`。）
 
 ### 2.2 统一响应格式
 

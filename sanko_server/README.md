@@ -9,31 +9,42 @@
 cd sanko_server
 npm install
 
-# 2. 启动后端（默认 http://localhost:8083）
+# 2. 启动后端（默认 http://127.0.0.1:8083）
 npm run dev
 
-# 3. 另开终端，启动前端
+# 3. 另开终端，启动前端（联调）
 cd ../sanko_read
-npm run dev
+npm run dev:api
 ```
 
 ## 切换 Mock / 真实后端
 
 前端通过环境变量切换，**不需要删 Mock 代码**：
 
-| 模式 | 配置 | 行为 |
+| 模式 | 命令 | 行为 |
 |------|------|------|
-| 内置 Mock（默认） | `VITE_USE_MOCK=true` | 不请求本服务 |
-| 联调本服务 | `VITE_USE_MOCK=false` | 请求 `VITE_API_BASE_URL` |
+| 内置 Mock | `npm run dev:mock` | 不请求本服务 |
+| 联调本服务 | `npm run dev:api` | 请求 `http://127.0.0.1:8083` |
+| 默认 dev | `npm run dev` | 读 `.env.development` + 可选 `.env.development.local` |
 
-推荐：复制 `sanko_read/.env.development.local.example` 为 `.env.development.local`：
+推荐联调步骤：
+
+```bash
+# 终端 1
+cd sanko_server && npm run dev
+
+# 终端 2
+cd sanko_read && npm run dev:api
+```
+
+也可用本地覆盖文件（见 `sanko_read/.env.development.local.example`）：
 
 ```env
 VITE_USE_MOCK=false
 VITE_API_BASE_URL=http://127.0.0.1:8083
 ```
 
-修改 `.env*` 后需 **重启** 前端 `npm run dev`。
+修改 `.env*` 或切换命令后需 **重启** 前端。切换模式后建议 **重新登录**（Mock token 与小后端不通用）。
 
 ## 已实现接口（联调够用）
 
@@ -46,7 +57,7 @@ VITE_API_BASE_URL=http://127.0.0.1:8083
 | 公告 | `GET /api/announcement/latest` |
 | 账号 | `GET /api/profile/account` |
 | 阅读历史 | `GET /api/books/reading-history`（需登录） |
-| 个人书库 | `GET/POST /api/books`、`/search`、`POST /:id/file`、`DELETE /:id`、`/:id/file-url`、`/:id/progress`（需登录） |
+| 个人书库 | `GET/POST /api/books`、`POST /import`、`/search`、`POST /:id/file`、`DELETE /:id`、`/:id/file-url`、`/:id/progress`（需登录） |
 | 喜欢 | `GET/POST/DELETE /api/favorites/:bookId` |
 | 书架 | `GET/POST/PATCH/DELETE /api/bookshelves/*` |
 | 标注 / 书签 | `GET/POST /api/annotations`、`/api/bookmarks` |
@@ -62,8 +73,8 @@ VITE_API_BASE_URL=http://127.0.0.1:8083
 
 ## 联调验证
 
-1. 后端 `npm run dev`，访问 http://localhost:8083/health
-2. 前端 `VITE_USE_MOCK=false`，打开 DevTools → Network
+1. 后端 `npm run dev`，访问 http://127.0.0.1:8083/health
+2. 前端 `npm run dev:api`，打开 DevTools → Network
 3. 登录：任意用户名 + 非空密码
 4. 首页 5 本书应来自 `GET /api/catalog/home`
 5. 点《三体》→ `GET /api/catalog/books/n0`

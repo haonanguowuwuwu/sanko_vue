@@ -18,15 +18,24 @@
 ## 后端快速开始
 
 1. **先读 [VERSION_2.0.md](./VERSION_2.0.md)** — 了解 2.0 功能与联调清单
-2. **再读 [INTEGRATION.md](./INTEGRATION.md)** — 了解如何关闭 Mock
+2. **再读 [INTEGRATION.md](./INTEGRATION.md)** — Mock / 联调切换（`dev:mock` / `dev:api`）
 3. 接口细节见 [BACKEND_API.md](./BACKEND_API.md)；可导入 [openapi.yaml](./openapi.yaml) 到 Apifox
-4. 启动小后端 `sanko_server`（8083），前端 `VITE_USE_MOCK=false`（详见 INTEGRATION.md）
+4. 启动：
+
+```bash
+cd sanko_server && npm run dev          # 8083
+cd sanko_read && npm run dev:api        # 联调
+# 或 npm run dev:mock                   # 纯 Mock
+```
+
+详见 [sanko_server/README.md](../sanko_server/README.md)。
 
 ## 前端源码对照
 
 | 模块 | 路径 |
 |------|------|
 | **联调小后端** | [`sanko_server/`](../sanko_server/)（Node.js Express，与前端分离） |
+| Mock / 联调切换 | `sanko_read/package.json`：`dev:mock`、`dev:api`；环境文件见 INTEGRATION.md |
 | 请求封装 | `sanko_read/src/api/request.ts` |
 | 各模块 API | `sanko_read/src/api/*.ts` |
 | 类型定义 | `sanko_read/src/api/types.ts`、`sanko_read/src/types/` |

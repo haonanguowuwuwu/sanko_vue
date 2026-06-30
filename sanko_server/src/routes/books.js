@@ -23,6 +23,32 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
 })
 
+const importUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+})
+
+const SAMPLE_IMPORT_TEMPLATES = [
+  {
+    title: '《雅思词汇真经》',
+    author: '刘洪波',
+    coverColor: '#e86c1a',
+    coverTitle: '雅思词汇真经',
+    format: 'PDF',
+    fileSize: '12.6 MB',
+    category: '学习资料',
+  },
+  {
+    title: '《高等数学（上册）》',
+    author: '同济大学数学系',
+    coverColor: '#1a5fb4',
+    coverTitle: '高等数学',
+    format: 'PDF',
+    fileSize: '28.3 MB',
+    category: '学习资料',
+  },
+]
+
 const router = Router()
 
 function purgeBook(id) {
@@ -96,6 +122,69 @@ router.get('/search', (req, res) => {
       b.category.toLowerCase().includes(q),
   )
   res.json(ok(matched))
+})
+
+router.post('/import', importUpload.single('file'), (req, res) => {
+  const today = new Date().toISOString().slice(0, 10)
+
+  if (req.file) {
+    const format = parseFormatFromFileName(req.file.originalname)
+    if (!format) {
+      return fail(res, `暂不支持该文件格式：.${req.file.originalname.split('.').pop() ?? ''}`)
+    }
+    const rawTitle = req.file.originalname.replace(/\.[^.]+$/, '')
+    const title = rawTitle.startsWith('《') ? rawTitle : `《${rawTitle}》`
+    const id = `book-${Date.now()}`
+    const ext = path.extname(req.file.originalname) || '.bin'
+    const storedName = `${id}${ext}`
+    fs.writeFileSync(path.join(uploadsDir, storedName), req.file.buffer)
+    const book = {
+      id,
+      title,
+      author: '本地导入',
+      progress: 0,
+      coverColor: '#5a7a6a',
+      coverTitle: rawTitle.replace(/^《|》$/g, ''),
+      fileSize: formatFileSize(req.file.size),
+      format,
+      addedAt: today,
+      category: '本地导入',
+    }
+    store.personalBooks.push(book)
+    store.bookFormats.set(id, format)
+    store.bookFiles.set(id, {
+      storedName,
+      format,
+      fileSize: book.fileSize,
+    })
+    return res.json(ok(book))
+  }
+
+  const importedTitles = new Set([
+    ...store.personalBooks.map((b) => b.title),
+    ...store.trashedBooks.map((b) => b.title),
+  ])
+  const template = SAMPLE_IMPORT_TEMPLATES.find((s) => !importedTitles.has(s.title))
+  if (!template) {
+    return fail(res, '所有样本书籍已导入完毕')
+  }
+
+  const id = `book-${Date.now()}`
+  const book = {
+    id,
+    title: template.title,
+    author: template.author,
+    progress: 0,
+    coverColor: template.coverColor,
+    coverTitle: template.coverTitle,
+    fileSize: template.fileSize,
+    format: template.format,
+    addedAt: today,
+    category: template.category,
+  }
+  store.personalBooks.push(book)
+  store.bookFormats.set(id, template.format)
+  res.json(ok(book))
 })
 
 router.get('/:id', (req, res) => {

@@ -68,7 +68,8 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`  → http://127.0.0.1:${PORT}`)
   console.log(`  → 健康检查 GET /health`)
   console.log(`  → 样本书文件 GET /files/demo.epub`)
-  console.log(`\n  前端切换：sanko_read/.env.development.local 设置 VITE_USE_MOCK=false\n`)
+  console.log(`\n  前端 Mock：  cd ../sanko_read && npm run dev:mock`)
+  console.log(`  前端联调：  cd ../sanko_read && npm run dev:api\n`)
 })
 
 server.on('error', (err) => {

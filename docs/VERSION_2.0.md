@@ -14,7 +14,9 @@
 | 项目 | 路径 | 默认地址 |
 |------|------|----------|
 | 前端 | `sanko_read/` | http://localhost:5173 |
-| 小后端 | `sanko_server/` | http://localhost:8083 |
+| 小后端 | `sanko_server/` | http://127.0.0.1:8083 |
+
+Mock 与联调切换详见 [INTEGRATION.md](./INTEGRATION.md) 第 2–3 节。
 
 ---
 
@@ -43,9 +45,10 @@
 | 功能 | 路由 | 后端接口 |
 |------|------|----------|
 | 顶栏积分 | Header | `GET /api/profile/points/summary` |
-| 积分中心 | `/profile/points` | `summary` / `orders` / `recharge` |
-| 账号信息 | `/profile/account` | `GET /api/profile/account` |
+| 个人空间（三合一） | `/profile` | 账号 + 积分总览 / 充值 / 订单 |
 | 阅读历史 | `/profile/history` | `GET /api/books/reading-history` |
+
+> `/profile/points`、`/profile/account` 已重定向到 `/profile`。
 
 ### 2.4 公告与 AI
 
@@ -74,8 +77,7 @@
 | 本地书架 | `/library` | 否（数据需登录） | books |
 | 喜欢 | `/favorites` | 否 | favorites, books |
 | 书架分组 | `/shelf/:shelfId` | 否 | bookshelves, books |
-| 积分中心 | `/profile/points` | 是 | profile/points/* |
-| 账号信息 | `/profile/account` | 是 | profile/account |
+| 个人空间 | `/profile` | 是 | profile/account, profile/points/* |
 | 阅读历史 | `/profile/history` | 是 | books/reading-history |
 | 阅读器 | `/read/:id` | 是 | books/file-url, progress, annotations |
 
@@ -118,18 +120,42 @@
 
 ## 5. 联调配置
 
-```env
-# sanko_read/.env.development.local
-VITE_USE_MOCK=false
-VITE_API_BASE_URL=http://localhost:8083
-```
-
-启动顺序：
+### 5.1 推荐命令（Mock 可切换，无需删代码）
 
 ```bash
-cd sanko_server && npm run dev    # 8083
-cd sanko_read && npm run dev      # 5173
+# 终端 1：小后端
+cd sanko_server && npm run dev
+
+# 终端 2：前端联调
+cd sanko_read && npm run dev:api
 ```
+
+纯 Mock（不启小后端）：
+
+```bash
+cd sanko_read && npm run dev:mock
+```
+
+### 5.2 环境变量（备选）
+
+复制 `sanko_read/.env.development.local.example` → `.env.development.local`：
+
+```env
+VITE_USE_MOCK=false
+VITE_API_BASE_URL=http://127.0.0.1:8083
+```
+
+然后 `npm run dev`。修改后需重启前端。
+
+| 文件 | 说明 |
+|------|------|
+| `.env.mock` | `npm run dev:mock` |
+| `.env.api` | `npm run dev:api` |
+| `.env.development.local` | 覆盖 `npm run dev` 的默认值 |
+
+启动时终端会打印当前模式；浏览器控制台有 `[Sanko] …` 提示。**切换模式后请重新登录。**
+
+完整说明见 [INTEGRATION.md](./INTEGRATION.md)。
 
 ---
 
@@ -144,7 +170,7 @@ cd sanko_read && npm run dev      # 5173
 | 5 | 点《三体》 | `GET /api/catalog/books/n0`（含 rating） |
 | 6 | 发评论带星 | `POST /api/catalog/books/n0/comments` |
 | 7 | 分类页 | `GET /api/catalog/filters`、`/books` |
-| 8 | 账号页 | `GET /api/profile/account` |
+| 8 | 个人空间 | `GET /api/profile/account`、`/points/summary` |
 | 9 | 阅读历史 | `GET /api/books/reading-history` |
 | 10 | 介绍页 AI | `POST /api/chat`（source=book） |
 
@@ -156,7 +182,7 @@ cd sanko_read && npm run dev      # 5173
 2. **书籍综合评分** 来自种子静态值，用户评论评分 **不会** 自动更新介绍页 `rating`。
 3. **无独立「只评分不写评论」** 接口。
 4. 账号邮箱等为演示字段，非真实用户系统。
-5. Mock 模式（`VITE_USE_MOCK=true`）仍可用，逻辑与 API 层一致。
+5. Mock 模式（`VITE_USE_MOCK=true` 或 `npm run dev:mock`）仍可用，逻辑与 API 层一致；与联调模式通过命令或 env 切换，**无需删除 Mock 代码**。
 
 ---
 
@@ -169,7 +195,9 @@ cd sanko_read && npm run dev      # 5173
 | 书籍评分 | `sanko_read/src/components/book/BookRatingBadge.vue` |
 | 评论评分 | `sanko_read/src/components/book/StarRatingInput.vue` |
 | 积分 Store | `sanko_read/src/stores/profile.ts` |
-| 账号页 | `sanko_read/src/views/ProfileAccountView.vue` |
+| 个人空间页 | `sanko_read/src/views/ProfileView.vue` |
+| 积分面板组件 | `sanko_read/src/components/profile/ProfilePointsSection.vue` |
+| Mock/联调切换 | `sanko_read/package.json`（`dev:mock` / `dev:api`）、`.env.mock`、`.env.api` |
 | 小后端公告 | `sanko_server/src/routes/announcement.js` |
 | 小后端账号 | `sanko_server/src/routes/profileAccount.js` |
 
@@ -179,6 +207,7 @@ cd sanko_read && npm run dev      # 5173
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **2.0.1** | 2026-06-30 | Mock/联调一键切换（`dev:mock` / `dev:api`）；个人页三合一 `/profile`；小后端补 `POST /api/books/import` |
 | **2.0.0** | 2026-06-25 | 书城联调、评论评分、公告、账号、顶栏积分、介绍页 AI；分类/历史/标签屏蔽接 API |
 | 1.1.0 | 2026-06-25 | 积分、file-url、书城域接口定义 |
 | 1.0.0 | 2026-06-17 | 用户域接口初版 |

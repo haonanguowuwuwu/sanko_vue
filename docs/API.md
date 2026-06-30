@@ -11,7 +11,7 @@
 | 角色 | 操作 |
 |------|------|
 | **后端** | 按本文档实现接口；实现后在 Knife4j `/doc.html` 维护在线文档 |
-| **前端** | 联调时设置 `VITE_USE_MOCK=false`、`VITE_API_BASE_URL=http://localhost:8083` |
+| **前端** | 联调：`npm run dev:api`；Mock：`npm run dev:mock`（详见 [INTEGRATION.md](./INTEGRATION.md)） |
 | **协作** | 可导入 [`openapi.yaml`](./openapi.yaml) 到 Apifox / Postman |
 | **联调（关 Mock）** | [`INTEGRATION.md`](./INTEGRATION.md) |
 | **后端完整需求** | [`BACKEND_API.md`](./BACKEND_API.md)（含积分、file-url、书城域） |
@@ -31,7 +31,7 @@
 ### Base URL
 
 ```
-http://localhost:8083
+http://127.0.0.1:8083
 ```
 
 对应前端环境变量 `VITE_API_BASE_URL`。
@@ -515,7 +515,7 @@ Authorization: Bearer <token>
 - [ ] 登录接口返回 `{ token, user }`，且 `/api/auth/me` 可用
 - [ ] 所有接口响应 `{ code, message, data }`，成功时 `code = 0`
 - [ ] 401 时 HTTP 状态码为 401
-- [ ] 前端 `.env.development` 设置 `VITE_USE_MOCK=false`
+- [ ] 前端联调使用 `npm run dev:api`（或 `.env.development.local` 中 `VITE_USE_MOCK=false`）
 - [ ] 按模块逐步联调：认证 → 图书 → 书架 → 阅读 → 标注
 
 ---
