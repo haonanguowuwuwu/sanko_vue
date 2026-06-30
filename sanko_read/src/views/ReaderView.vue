@@ -441,12 +441,12 @@ onMounted(() => {
         <h1 class="reader-title" :title="book.title">{{ book.title }}</h1>
       </div>
 
-      <div class="reader-header__meta">
-        <span class="reader-format">{{ book.format }}</span>
-        <span class="reader-chapter" :title="chapterTitle">{{ chapterTitle || '—' }}</span>
-      </div>
-
       <div class="reader-header__actions">
+        <div class="reader-header__meta-box">
+          <span class="reader-format">{{ book.format }}</span>
+          <span class="reader-header__meta-divider" aria-hidden="true" />
+          <span class="reader-chapter" :title="chapterTitle">{{ chapterTitle || '—' }}</span>
+        </div>
         <button
           type="button"
           class="reader-menu-btn"
@@ -574,9 +574,9 @@ onMounted(() => {
 }
 
 .reader-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
   padding: 12px 24px;
   border-bottom: 1px solid #e0d8cc;
@@ -584,7 +584,6 @@ onMounted(() => {
 }
 
 .reader-header__primary,
-.reader-header__meta,
 .reader-header__actions {
   display: flex;
   align-items: center;
@@ -592,12 +591,31 @@ onMounted(() => {
   min-width: 0;
 }
 
-.reader-header__meta {
-  justify-content: center;
+.reader-header__primary {
+  flex: 1;
 }
 
 .reader-header__actions {
+  flex-shrink: 0;
   justify-content: flex-end;
+}
+
+.reader-header__meta-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(280px, 36vw);
+  padding: 6px 12px;
+  border: 1px solid #e0d8cc;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.reader-header__meta-divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 16px;
+  background: #d8d0c4;
 }
 
 .reader-progress {
@@ -653,7 +671,6 @@ onMounted(() => {
 .reader-chapter {
   flex: 1;
   min-width: 0;
-  text-align: center;
   font-size: 13px;
   color: var(--sanko-text-secondary);
   overflow: hidden;
@@ -784,15 +801,17 @@ onMounted(() => {
   gap: 16px;
 }
 
-@media (max-width: 900px) {
-  .reader-header {
-    grid-template-columns: 1fr auto;
-    grid-template-rows: auto auto;
+@media (max-width: 640px) {
+  .reader-header__meta-box {
+    max-width: 140px;
   }
 
-  .reader-header__meta {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
+  .reader-chapter {
+    display: none;
+  }
+
+  .reader-header__meta-divider {
+    display: none;
   }
 }
 </style>

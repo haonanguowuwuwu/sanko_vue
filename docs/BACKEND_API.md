@@ -3,8 +3,9 @@
 > 依据前端 `sanko_read` 整理，供后端实现参考。  
 > 机器可读契约见 [`openapi.yaml`](./openapi.yaml)；精简版见 [`API.md`](./API.md)；**联调步骤见 [`INTEGRATION.md`](./INTEGRATION.md)**。
 
-**版本：** 1.1.0  
-**日期：** 2026-06-25
+**版本：** 2.0.0  
+**日期：** 2026-06-25  
+**2.0 变更摘要：** 见 [VERSION_2.0.md](./VERSION_2.0.md)
 
 ---
 
@@ -19,10 +20,10 @@ VITE_API_BASE_URL=http://localhost:8083
 
 接口分为两类：
 
-| 类型 | 说明 | 状态 |
-|------|------|------|
-| **用户域 API** | 登录、个人书库、书架、标注、设置、积分等 | 前端已定义路径，待后端实现 |
-| **书城域 API** | 首页推荐、榜单、书籍详情、评论等 | 前端目前用静态数据，需后端新增 |
+| 类型 | 说明 | 状态（2.0） |
+|------|------|------------|
+| **用户域 API** | 登录、个人书库、书架、标注、设置、积分、账号、阅读历史等 | 小后端已实现，前端已接入 |
+| **书城域 API** | 首页、分类、详情、评论、评分、标签屏蔽、公告等 | 小后端已实现，前端已接入 |
 
 ---
 
@@ -72,7 +73,12 @@ http://localhost:8083
 ### 3.1 UserInfo
 
 ```json
-{ "id": "user-1", "username": "demo" }
+{
+  "id": "user-1",
+  "username": "demo",
+  "email": "demo@sanko.local",
+  "registeredAt": "2026-01-15"
+}
 ```
 
 ### 3.2 AuthResult
@@ -207,7 +213,7 @@ http://localhost:8083
 `type`：`recharge` \| `earn` \| `use`；`status`：`completed` \| `pending` \| `failed`  
 充值汇率：**1 元 = 10 积分**
 
-### 3.10 CatalogBook / CatalogComment（书城，待实现）
+### 3.10 CatalogBook / CatalogComment（书城）
 
 ```json
 {
@@ -218,10 +224,43 @@ http://localhost:8083
   "coverTitle": "三体",
   "description": "榜单短描述",
   "category": "科幻 · 长篇",
-  "updateStatus": "已完结",
-  "latestChapter": "死神永生",
+  "purchaseType": "free",
   "tags": ["科幻", "硬核"],
-  "synopsis": "完整简介……"
+  "synopsis": "完整简介……",
+  "rating": 5.0,
+  "ratingMax": 5.0,
+  "editions": [{ "id": "n0-epub", "format": "EPUB", "fileSize": "1.40 MB" }]
+}
+```
+
+评论 `CatalogComment` 可选字段 `rating`（1–5，主评论评分）：
+
+```json
+{
+  "id": "c1",
+  "user": "用户1",
+  "content": "非常好看，强力推荐！",
+  "date": "2026-06-02",
+  "likes": 30,
+  "replyCount": 2,
+  "rating": 5,
+  "replies": []
+}
+```
+
+### 3.11 Announcement / AccountProfile（2.0）
+
+```json
+{ "id": "ann-1", "title": "公告", "content": "公告正文……" }
+```
+
+```json
+{
+  "id": "user-1",
+  "username": "demo",
+  "email": "demo@sanko.local",
+  "registeredAt": "2026-01-15",
+  "pointsBalance": 12580
 }
 ```
 
@@ -244,6 +283,7 @@ http://localhost:8083
 | GET | `/api/profile/points/summary` | 积分总览 → `PointsSummary` |
 | GET | `/api/profile/points/orders` | 订单列表，query: `type`, `page`, `pageSize`, `startDate`, `endDate` |
 | POST | `/api/profile/points/recharge` | body: `{ amount, method: 'wechat'\|'alipay' }` → `{ orderId }` |
+| GET | `/api/profile/account` | 账号信息 → `AccountProfile`（2.0） |
 
 ### 4.3 图书（个人书库）
 
@@ -253,6 +293,7 @@ http://localhost:8083
 | POST | `/api/books` | 将书城书加入个人库 |
 | GET | `/api/books/trash` | 回收站 |
 | GET | `/api/books/search?q=` | 搜索 |
+| GET | `/api/books/reading-history` | 阅读历史（按 `lastReadAt` 排序，2.0） |
 | GET | `/api/books/{id}` | 详情 |
 | POST | `/api/books/import` | multipart 导入 EPUB/PDF |
 | POST | `/api/books/{id}/trash` | 移入回收站 |
@@ -295,8 +336,8 @@ http://localhost:8083
 | GET/PATCH | `/api/settings` | 用户设置 |
 | POST | `/api/backup` | 创建备份 |
 | POST | `/api/restore` | multipart 恢复 JSON |
-| POST | `/api/chat` | 全局 AI 聊天 |
-| POST | `/api/books/{id}/ai/chat` | 阅读页 AI |
+| POST | `/api/chat` | AI 聊天，body: `{ message, history?, source, bookId? }` |
+| GET | `/api/announcement/latest` | 最新公告（2.0） |
 
 ### 4.8 阅读内容（可选）
 
@@ -307,21 +348,20 @@ http://localhost:8083
 
 ---
 
-## 5. 接口清单（书城域 — 建议新增）
+## 5. 接口清单（书城域 — 2.0 已实现）
 
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
-| GET | `/api/catalog/home` | 否 | 推荐位 + 榜单 |
-| GET | `/api/catalog/books` | 否 | 分类筛选分页列表 |
+| GET | `/api/catalog/home` | 否 | 推荐位 |
+| GET | `/api/catalog/books` | 否 | 分类筛选列表 |
 | GET | `/api/catalog/filters` | 否 | 筛选项配置 |
-| GET | `/api/catalog/books/{id}` | 否 | 书城书籍详情 |
+| GET | `/api/catalog/books/{id}` | 否 | 书城书籍详情（含 `rating`） |
 | GET | `/api/catalog/books/{id}/comments` | 否 | 评论列表 |
-| POST | `/api/catalog/books/{id}/comments` | 是 | 发表评论 |
+| POST | `/api/catalog/books/{id}/comments` | 是 | 发表评论，body: `{ content, rating? }` |
 | POST | `/api/catalog/comments/{id}/replies` | 是 | 回复 |
 | POST/DELETE | `/api/catalog/comments/{id}/like` | 是 | 点赞 / 取消 |
 | POST | `/api/catalog/comments/{id}/report` | 是 | 举报 `{ reason }` |
-| POST/DELETE | `/api/catalog/books/{id}/block` | 是 | 屏蔽 / 取消屏蔽 |
-| GET | `/api/catalog/blocks` | 是 | 屏蔽列表 |
+| GET/PUT | `/api/catalog/blocked-tags` | 是 | 标签屏蔽列表 / 更新 |
 
 ### 书城与个人书库关系
 
@@ -341,18 +381,19 @@ PATCH /api/books/{id}/progress
 | 前端页面 | 路由 | 依赖接口 |
 |----------|------|----------|
 | 登录 | — | `/api/auth/*` |
-| 首页 | `/` | `/api/catalog/home`（当前静态） |
-| 书籍详情 | `/book/:id` | `/api/catalog/books/{id}` + 评论 |
-| 分类 | `/categories` | `/api/catalog/filters`，`/api/catalog/books` |
+| 首页 | `/` | `/api/catalog/home`，`/api/chat` |
+| 书籍详情 | `/book/:id` | `/api/catalog/books/{id}`，评论，AI（`source=book`） |
+| 分类 | `/categories` | `/api/catalog/filters`，`/api/catalog/books`，blocked-tags |
 | 本地书库 | `/library` | `/api/books` |
 | 书架 | `/shelf/:shelfId` | `/api/bookshelves`，`/api/books` |
 | 喜欢 | `/favorites` | `/api/favorites`，`/api/books` |
 | 笔记 / 高亮 | `/notes`，`/highlights` | `/api/annotations` |
 | 回收站 | `/recycle-bin` | `/api/books/trash` |
-| 阅读历史 | `/profile/history` | `/api/books`（`lastReadAt`） |
+| 阅读历史 | `/profile/history` | `/api/books/reading-history` |
 | 积分中心 | `/profile/points` | `/api/profile/points/*` |
-| 阅读器 | `/read/:id` | `file-url`，`progress`，标注，书签 |
-| AI 聊天 | `/chat` | `/api/chat` |
+| 账号信息 | `/profile/account` | `/api/profile/account` |
+| 阅读器 | `/read/:id` | `file-url`，`progress`，标注，书签，AI（`source=reader`） |
+| 公告 | 登录后弹窗 | `/api/announcement/latest` |
 
 ---
 
@@ -373,9 +414,9 @@ PATCH /api/books/{id}/progress
 | 优先级 | 模块 |
 |--------|------|
 | P0 | 认证、图书 CRUD、`file-url`、进度、书架、喜欢 |
-| P1 | 标注、书签、设置、积分 |
-| P2 | 书城首页、详情、评论、分类 |
-| P3 | 备份、AI 聊天 |
+| P1 | 标注、书签、设置、积分、阅读历史、账号 |
+| P2 | 书城首页、详情、评论、分类、评分、标签屏蔽、公告 |
+| P3 | 备份、AI 聊天（已实现 `/api/chat`） |
 
 ---
 
@@ -408,5 +449,6 @@ PATCH /api/books/{id}/progress
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 2.0.0 | 2026-06-25 | 书城联调、评论评分、公告、账号、顶栏积分；详见 VERSION_2.0.md |
 | 1.1.0 | 2026-06-25 | 新增积分、`file-url`、书城域接口；补充标注字段 |
 | 1.0.0 | 2026-06-17 | 初版用户域接口 |

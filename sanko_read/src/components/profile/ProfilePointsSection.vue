@@ -62,7 +62,7 @@ const syncTabFromRoute = () => {
 
 const switchTab = (key: TabKey) => {
   activeTab.value = key
-  router.replace({ query: { tab: key } })
+  router.replace({ name: 'profile', query: { tab: key } })
 }
 
 const loadSummary = async () => {
@@ -173,7 +173,6 @@ onMounted(async () => {
       </button>
     </nav>
 
-    <!-- 积分总览 -->
     <div v-if="activeTab === 'overview'" class="profile-points__panel">
       <div class="points-card">
         <div class="points-card__inner">
@@ -199,7 +198,6 @@ onMounted(async () => {
       </section>
     </div>
 
-    <!-- 充值中心 -->
     <div v-else-if="activeTab === 'recharge'" class="profile-points__panel">
       <div class="recharge-header">
         <h2 class="recharge-header__title">充值中心</h2>
@@ -264,17 +262,11 @@ onMounted(async () => {
         </button>
       </div>
 
-      <button
-        type="button"
-        class="recharge-submit"
-        :disabled="paying"
-        @click="handlePay"
-      >
+      <button type="button" class="recharge-submit" :disabled="paying" @click="handlePay">
         确定支付
       </button>
     </div>
 
-    <!-- 订单详情 -->
     <div v-else class="profile-points__panel profile-points__panel--orders">
       <div class="orders-stats">
         <div class="orders-stat">
@@ -385,16 +377,18 @@ onMounted(async () => {
 
 <style scoped>
 .profile-points {
-  max-width: 960px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 .profile-points__tabs {
   display: flex;
   gap: 32px;
-  padding: 0 8px;
-  margin-bottom: 24px;
-  border-bottom: 1px solid var(--sanko-border);
+  padding: 0 24px;
+  margin-bottom: 0;
+  background: #fff;
+  border: 1px solid var(--sanko-border);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
 }
 
 .profile-points__tab {
@@ -426,7 +420,8 @@ onMounted(async () => {
 .profile-points__panel {
   background: #fff;
   border: 1px solid var(--sanko-border);
-  border-radius: 12px;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
   padding: 32px 40px;
 }
 
@@ -434,7 +429,6 @@ onMounted(async () => {
   padding: 24px 28px;
 }
 
-/* 积分卡 */
 .points-card {
   display: flex;
   justify-content: center;
@@ -527,7 +521,6 @@ onMounted(async () => {
   color: var(--sanko-text-secondary);
 }
 
-/* 充值中心 */
 .recharge-header {
   display: flex;
   align-items: baseline;
@@ -647,7 +640,6 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
-/* 订单详情 */
 .orders-stats {
   display: flex;
   gap: 48px;

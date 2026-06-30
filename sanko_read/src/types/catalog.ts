@@ -27,6 +27,8 @@ export interface CatalogBook {
   category?: string
   /** 无需积分购买 / 需要积分购买 */
   purchaseType?: 'free' | 'paid'
+  /** 积分购买价格（purchaseType 为 paid 时有效） */
+  pointsPrice?: number
   tags?: string[]
   synopsis?: string
   /** 综合评分，满分默认 5 */

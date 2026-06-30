@@ -30,7 +30,7 @@ npm run dev
 
 ```env
 VITE_USE_MOCK=false
-VITE_API_BASE_URL=http://localhost:8083
+VITE_API_BASE_URL=http://127.0.0.1:8083
 ```
 
 修改 `.env*` 后需 **重启** 前端 `npm run dev`。
@@ -42,13 +42,15 @@ VITE_API_BASE_URL=http://localhost:8083
 | 健康检查 | `GET /health` |
 | 认证 | `POST /api/auth/login`、`/logout`、`GET /me` |
 | 设置 | `GET/PATCH /api/settings` |
-| 书城 | `GET /api/catalog/home`、`/filters`、`/books`、`/books/:id`、评论、标签屏蔽 |
+| 书城 | `GET /api/catalog/home`、`/filters`、`/books`、`/books/:id`、评论（含 `rating`）、标签屏蔽 |
+| 公告 | `GET /api/announcement/latest` |
+| 账号 | `GET /api/profile/account` |
 | 阅读历史 | `GET /api/books/reading-history`（需登录） |
 | 个人书库 | `GET/POST /api/books`、`/search`、`POST /:id/file`、`DELETE /:id`、`/:id/file-url`、`/:id/progress`（需登录） |
 | 喜欢 | `GET/POST/DELETE /api/favorites/:bookId` |
 | 书架 | `GET/POST/PATCH/DELETE /api/bookshelves/*` |
 | 标注 / 书签 | `GET/POST /api/annotations`、`/api/bookmarks` |
-| 积分 | `GET /api/profile/points/summary`、`/orders` |
+| 积分 | `GET /api/profile/points/summary`、`/orders`、`POST /recharge` |
 | AI 聊天 | `POST /api/chat`（支持 `source`、`bookId`） |
 | 样本书 | `GET /files/demo.epub` 等 |
 
@@ -66,6 +68,11 @@ VITE_API_BASE_URL=http://localhost:8083
 4. 首页 5 本书应来自 `GET /api/catalog/home`
 5. 点《三体》→ `GET /api/catalog/books/n0`
 6. 首页 AI 聊天 → `POST /api/chat`，body 含 `"source":"home"`
+7. 登录后 → `GET /api/announcement/latest`（公告弹窗）
+8. 三体介绍页发评论 → `POST /api/catalog/books/n0/comments`（可带 `rating`）
+9. 账号页 → `GET /api/profile/account`
+
+完整 2.0 说明见 [`docs/VERSION_2.0.md`](../docs/VERSION_2.0.md)。
 
 ## 说明
 

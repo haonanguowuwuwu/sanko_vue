@@ -26,10 +26,60 @@ function formatDate() {
   return new Date().toISOString().slice(0, 10)
 }
 
+function bookRequiresPurchase(book) {
+  return book?.purchaseType === 'paid'
+}
+
+function isCatalogBookPurchased(bookId) {
+  return store.purchasedCatalogIds.has(bookId)
+}
+
+function ensureCatalogAccess(book, res) {
+  if (bookRequiresPurchase(book) && !isCatalogBookPurchased(book.id)) {
+    fail(res, '请先使用积分购买此书', 403, 403)
+    return false
+  }
+  return true
+}
+
+router.get('/purchases', requireAuth, (_req, res) => {
+  res.json(ok([...store.purchasedCatalogIds]))
+})
+
+router.post('/books/:id/purchase', requireAuth, (req, res) => {
+  const book = findCatalogBook(req.params.id)
+  if (!book) return fail(res, '书籍不存在', 404, 404)
+  if (!bookRequiresPurchase(book)) {
+    return fail(res, '该书无需购买')
+  }
+  if (isCatalogBookPurchased(book.id)) {
+    return res.json(ok({ purchased: true, balance: store.pointsSummary.balance }))
+  }
+  const price = book.pointsPrice ?? 0
+  if (store.pointsSummary.balance < price) {
+    return fail(res, '积分不足', 400)
+  }
+  store.pointsSummary.balance -= price
+  store.pointsSummary.totalUsed += price
+  store.purchasedCatalogIds.add(book.id)
+  const orderId = `ORD${Date.now()}`
+  store.pointsOrders.unshift({
+    id: orderId,
+    time: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    type: 'use',
+    change: -price,
+    balance: store.pointsSummary.balance,
+    description: `购买《${book.title}》电子书`,
+    status: 'completed',
+  })
+  res.json(ok({ purchased: true, balance: store.pointsSummary.balance, orderId }))
+})
+
 router.get('/home', (_req, res) => {
+  const featured = filterCatalogList(catalogBooks).map(({ comments: _c, ...book }) => book)
   res.json(
     ok({
-      featured: filterCatalogList(catalogBooks),
+      featured,
     }),
   )
 })
@@ -155,15 +205,21 @@ router.get('/books/:id', (req, res) => {
   res.json(ok({ ...book, comments: getBookComments(req.params.id) }))
 })
 
-router.post('/books/:id/editions/:editionId/download', (req, res) => {
+router.post('/books/:id/editions/:editionId/download', requireAuth, (req, res) => {
   const book = findCatalogBook(req.params.id)
   if (!book) return fail(res, '书籍不存在', 404, 404)
+  if (!ensureCatalogAccess(book, res)) return
   const edition = book.editions?.find((e) => e.id === req.params.editionId)
   if (!edition) return fail(res, '版本不存在', 404, 404)
+  const base = `${req.protocol}://${req.get('host')}`
+  const format = edition.format.toUpperCase()
+  const demoFile =
+    format === 'PDF' ? 'demo.pdf' : format === 'TXT' ? 'demo.txt' : 'demo.epub'
   res.json(
     ok({
       message: `已开始下载 ${edition.format}（${edition.fileSize}）`,
       edition,
+      downloadUrl: `${base}/files/${demoFile}`,
     }),
   )
 })

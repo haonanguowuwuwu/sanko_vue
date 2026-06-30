@@ -1,12 +1,15 @@
 import { Router } from 'express'
 import { ok, fail } from '../response.js'
 import { store } from '../store.js'
+import { requireAuth } from '../middleware/auth.js'
 
 let shelfCounter = 10
 
 const cloneShelves = () => store.shelves.map((s) => ({ ...s, bookIds: [...s.bookIds] }))
 
 const router = Router()
+
+router.use(requireAuth)
 
 router.get('/', (_req, res) => {
   res.json(ok(cloneShelves()))

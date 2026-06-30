@@ -1,6 +1,7 @@
 import type { Book } from '@/types/book'
 import { formatAddedDate } from '@/types/book'
 import type { CatalogBook, CatalogBookEdition, RankSection } from '@/types/catalog'
+import { doupoBook, guimiBook, huozheBook, jieyouBook } from '@/data/featuredBooksData'
 
 export type { CatalogBook, CatalogBookEdition, CatalogComment, RankSection } from '@/types/catalog'
 
@@ -113,10 +114,10 @@ export const santiBook: CatalogBook = {
 
 export const featuredBooks: CatalogBook[] = [
   santiBook,
-  { id: 'f2', title: '书籍2', author: '作者2', coverColor: '#1a5fb4', coverTitle: '书籍2' },
-  { id: 'f3', title: '书籍3', author: '作者3', coverColor: '#2d8659', coverTitle: '书籍3' },
-  { id: 'f4', title: '书籍4', author: '作者4', coverColor: '#6b3fa0', coverTitle: '书籍4' },
-  { id: 'f5', title: '书籍5', author: '作者5', coverColor: '#b83232', coverTitle: '书籍5' },
+  guimiBook,
+  jieyouBook,
+  doupoBook,
+  huozheBook,
 ]
 
 export const rankSections: RankSection[] = [
@@ -218,4 +219,15 @@ export function formatEditionLabel(edition: CatalogBookEdition): string {
 export const purchaseTypeLabel: Record<NonNullable<CatalogBook['purchaseType']>, string> = {
   free: '无需积分购买',
   paid: '需要积分购买',
+}
+
+export function formatCatalogPurchaseAttr(book: CatalogBook): string {
+  if (book.purchaseType === 'paid' && book.pointsPrice) {
+    return `需要 ${book.pointsPrice.toLocaleString()} 积分购买`
+  }
+  return book.purchaseType ? purchaseTypeLabel[book.purchaseType] : '—'
+}
+
+export function catalogBookRequiresPurchase(book: CatalogBook): boolean {
+  return book.purchaseType === 'paid'
 }

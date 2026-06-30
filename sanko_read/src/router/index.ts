@@ -46,16 +46,21 @@ const router = createRouter({
           component: () => import('@/views/ShelfView.vue'),
         },
         {
-          path: 'profile/points',
-          name: 'profile-points',
+          path: 'profile',
+          name: 'profile',
           meta: { requiresAuth: true },
-          component: () => import('@/views/ProfilePointsView.vue'),
+          component: () => import('@/views/ProfileView.vue'),
+        },
+        {
+          path: 'profile/points',
+          redirect: (to) => ({
+            name: 'profile',
+            query: { tab: (to.query.tab as string) || 'overview' },
+          }),
         },
         {
           path: 'profile/account',
-          name: 'profile-account',
-          meta: { requiresAuth: true },
-          component: () => import('@/views/ProfileAccountView.vue'),
+          redirect: { name: 'profile' },
         },
         {
           path: 'profile/history',

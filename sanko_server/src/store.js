@@ -33,6 +33,7 @@ export const store = {
   catalogComments: seedCatalogComments(),
   blockedTags: new Set(),
   commentLikes: new Set(),
+  purchasedCatalogIds: new Set(),
 }
 
 export function resetStore() {
@@ -51,6 +52,7 @@ export function resetStore() {
   store.catalogComments = seedCatalogComments()
   store.blockedTags.clear()
   store.commentLikes.clear()
+  store.purchasedCatalogIds.clear()
 }
 
 export function findCatalogBook(id) {

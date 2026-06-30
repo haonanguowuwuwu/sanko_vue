@@ -22,7 +22,12 @@ const PORT = Number(process.env.PORT) || 8083
 
 const app = express()
 
-app.use(cors())
+app.use(
+  cors({
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }),
+)
 app.use(express.json())
 
 // 样本书文件：复用前端 public/sample-books
@@ -48,14 +53,30 @@ app.use('/api/profile', profileAccountRoutes)
 app.use('/api/chat', chatRoutes)
 app.use('/api/announcement', announcementRoutes)
 
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
+  console.error('[sanko_server]', err)
+  res.status(500).json({ code: 500, message: err?.message || '服务器内部错误', data: null })
+})
+
 app.use((_req, res) => {
   res.status(404).json({ code: 404, message: '接口不存在', data: null })
 })
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n  Sanko 联调小后端已启动`)
-  console.log(`  → http://localhost:${PORT}`)
+  console.log(`  → http://127.0.0.1:${PORT}`)
   console.log(`  → 健康检查 GET /health`)
   console.log(`  → 样本书文件 GET /files/demo.epub`)
-  console.log(`\n  前端切换：sanko_read/.env.development 设置 VITE_USE_MOCK=false\n`)
+  console.log(`\n  前端切换：sanko_read/.env.development.local 设置 VITE_USE_MOCK=false\n`)
+})
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n  端口 ${PORT} 已被占用。请先结束旧进程再启动：`)
+    console.error(`  Windows: netstat -ano | findstr :${PORT}`)
+    console.error(`  然后: taskkill /PID <pid> /F\n`)
+    process.exit(1)
+  }
+  throw err
 })

@@ -38,6 +38,7 @@ export const mockState = {
   blockedTags: new Set<string>(),
   catalogComments: new Map<string, import('@/types/catalog').CatalogComment[]>(),
   commentLikes: new Set<string>(),
+  purchasedCatalogIds: new Set<string>(),
   settings: {
     disableRecycleBin: true,
     hideBookshelfBooks: false,

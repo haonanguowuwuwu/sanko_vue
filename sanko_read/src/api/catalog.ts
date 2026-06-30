@@ -28,6 +28,17 @@ export interface CatalogCommentPage {
   pageSize: number
 }
 
+export interface CatalogPurchaseResult {
+  purchased: boolean
+  balance: number
+  orderId?: string
+}
+
+export interface CatalogDownloadResult {
+  message: string
+  downloadUrl?: string
+}
+
 function mockCommentsForBook(bookId: string): CatalogComment[] {
   if (!mockState.catalogComments.has(bookId)) {
     const book = getCatalogBook(bookId)
@@ -67,7 +78,7 @@ export async function fetchCatalogFilters(): Promise<CatalogFilters> {
         { label: '无需积分购买', value: 'free' },
         { label: '需要积分购买', value: 'paid' },
       ],
-      tags: ['豪门', '孤儿', '宠物', '种田文', '无敌文'],
+      tags: ['豪门', '孤儿', '宠物', '种田文', '无敌文', '科幻', '硬核', '奇幻', '克苏鲁', '升级', '治愈', '温情', '推理', '玄幻', '热血', '文学', '现实', '人生'],
     })
   }
   return request<CatalogFilters>('/api/catalog/filters')
@@ -119,12 +130,63 @@ export async function fetchCatalogBook(id: string): Promise<CatalogBook | null> 
   }
 }
 
-export async function downloadCatalogEdition(bookId: string, editionId: string): Promise<void> {
+export async function downloadCatalogEdition(
+  bookId: string,
+  editionId: string,
+): Promise<CatalogDownloadResult> {
   if (USE_MOCK) {
     await mockDelay(undefined)
-    return
+    return { message: '下载已开始', downloadUrl: '/sample-books/demo.epub' }
   }
-  await request<void>(`/api/catalog/books/${bookId}/editions/${editionId}/download`, {
+  return request<CatalogDownloadResult>(
+    `/api/catalog/books/${bookId}/editions/${editionId}/download`,
+    { method: 'POST' },
+  )
+}
+
+export async function fetchPurchasedCatalogIds(): Promise<string[]> {
+  if (USE_MOCK) {
+    return mockDelay([...mockState.purchasedCatalogIds])
+  }
+  return request<string[]>('/api/catalog/purchases')
+}
+
+export async function purchaseCatalogBook(bookId: string): Promise<CatalogPurchaseResult> {
+  if (USE_MOCK) {
+    const book = getCatalogBook(bookId)
+    if (!book || book.purchaseType !== 'paid') {
+      throw new Error('该书无需购买')
+    }
+    if (mockState.purchasedCatalogIds.has(bookId)) {
+      return mockDelay({
+        purchased: true,
+        balance: mockState.pointsSummary.balance,
+      })
+    }
+    const price = book.pointsPrice ?? 0
+    if (mockState.pointsSummary.balance < price) {
+      throw new Error('积分不足')
+    }
+    mockState.pointsSummary.balance -= price
+    mockState.pointsSummary.totalUsed += price
+    mockState.purchasedCatalogIds.add(bookId)
+    const orderId = `ORD${Date.now()}`
+    mockState.pointsOrders.unshift({
+      id: orderId,
+      time: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      type: 'use',
+      change: -price,
+      balance: mockState.pointsSummary.balance,
+      description: `购买《${book.title}》电子书`,
+      status: 'completed',
+    })
+    return mockDelay({
+      purchased: true,
+      balance: mockState.pointsSummary.balance,
+      orderId,
+    })
+  }
+  return request<CatalogPurchaseResult>(`/api/catalog/books/${bookId}/purchase`, {
     method: 'POST',
   })
 }

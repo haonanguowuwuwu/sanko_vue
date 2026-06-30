@@ -9,6 +9,7 @@ import {
   Setting,
   HomeFilled,
   Grid,
+  User,
   ArrowUp,
   ArrowDown,
 } from '@element-plus/icons-vue'
@@ -17,7 +18,6 @@ import HamburgerMenuIcon from '@/components/HamburgerMenuIcon.vue'
 import LoginDialog from '@/components/LoginDialog.vue'
 import ManageBookshelfDialog from '@/components/ManageBookshelfDialog.vue'
 import IconTooltip from '@/components/IconTooltip.vue'
-import BookSortDropdown from '@/components/BookSortDropdown.vue'
 import AppSettingsDialog from '@/components/AppSettingsDialog.vue'
 import AddBookDialog from '@/components/AddBookDialog.vue'
 import AnnouncementDialog from '@/components/AnnouncementDialog.vue'
@@ -52,12 +52,14 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const menuItems = [
   { path: '/', label: '首页', icon: HomeFilled },
-  { path: '/categories', label: '分类', icon: Grid },
   { path: '/favorites', label: '喜欢', icon: HeartIcon },
+  { path: '/categories', label: '分类', icon: Grid },
+  { path: '/profile', label: '我的', icon: User },
 ]
 
 const isActive = (path: string) => {
   if (path === '/') return route.path === '/'
+  if (path === '/profile') return route.name === 'profile'
   return route.path.startsWith(path)
 }
 
@@ -67,9 +69,7 @@ const isLocalLibraryActive = computed(() => route.name === 'library')
 
 const isHomeRoute = computed(() => route.name === 'home' || route.name === 'book-intro')
 const isCategoriesRoute = computed(() => route.name === 'categories')
-const isProfileRoute = computed(
-  () => route.name === 'profile-points' || route.name === 'profile-account',
-)
+const isProfileRoute = computed(() => route.name === 'profile')
 const isReadingHistoryRoute = computed(() => route.name === 'reading-history')
 
 const openManageBookshelf = () => {
@@ -106,12 +106,8 @@ const handleLoginSuccess = () => {
   }
 }
 
-const goProfilePoints = () => {
-  void router.push({ name: 'profile-points' })
-}
-
-const goProfileAccount = () => {
-  void router.push({ name: 'profile-account' })
+const goProfile = () => {
+  void router.push({ name: 'profile' })
 }
 
 const goReadingHistory = () => {
@@ -216,7 +212,6 @@ onMounted(() => {
       </div>
 
       <div class="header-right">
-        <BookSortDropdown />
         <IconTooltip content="设置">
           <el-button
             class="header-icon-btn"
@@ -232,7 +227,7 @@ onMounted(() => {
           v-if="userStore.isLoggedIn"
           type="button"
           class="header-points"
-          @click="goProfilePoints"
+          @click="goProfile"
         >
           积分 {{ profileStore.pointsBalance.toLocaleString() }}
         </button>
@@ -243,8 +238,7 @@ onMounted(() => {
           </button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item @click="goProfileAccount">账号信息</el-dropdown-item>
-              <el-dropdown-item @click="goProfilePoints">我的积分</el-dropdown-item>
+              <el-dropdown-item @click="goProfile">个人空间</el-dropdown-item>
               <el-dropdown-item @click="goReadingHistory">阅读历史</el-dropdown-item>
               <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
             </el-dropdown-menu>

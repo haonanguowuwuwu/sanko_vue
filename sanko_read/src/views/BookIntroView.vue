@@ -6,16 +6,18 @@ import { ArrowLeft, Reading } from '@element-plus/icons-vue'
 import HeartIcon from '@/components/HeartIcon.vue'
 import BookCommentSection from '@/components/book/BookCommentSection.vue'
 import BookRatingBadge from '@/components/book/BookRatingBadge.vue'
+import BookPurchaseDialog from '@/components/book/BookPurchaseDialog.vue'
 import ReaderAiPanel from '@/components/reader/ReaderAiPanel.vue'
 import AddToBookshelfDialog from '@/components/AddToBookshelfDialog.vue'
 import { useBooksStore } from '@/stores/books'
 import { useReaderAnnotationsStore } from '@/stores/readerAnnotations'
+import { useCatalogPurchaseStore } from '@/stores/catalogPurchase'
 import { fetchCatalogBook, downloadCatalogEdition } from '@/api/catalog'
 import type { CatalogBook, CatalogBookEdition } from '@/types/catalog'
 import {
   catalogBookToLibraryBook,
+  formatCatalogPurchaseAttr,
   formatEditionLabel,
-  purchaseTypeLabel,
 } from '@/data/catalogBooks'
 import { seedDemoAnnotationsIfNeeded } from '@/api/mock/demoAnnotations'
 import { useRequireLogin } from '@/composables/useRequireLogin'
@@ -24,6 +26,7 @@ const route = useRoute()
 const router = useRouter()
 const booksStore = useBooksStore()
 const annotationsStore = useReaderAnnotationsStore()
+const purchaseStore = useCatalogPurchaseStore()
 const { isLoggedIn, requireLogin } = useRequireLogin()
 
 const book = ref<CatalogBook | null>(null)
@@ -31,6 +34,7 @@ const loading = ref(true)
 const selectedEditionId = ref<string>('')
 const showAddToShelfDialog = ref(false)
 const showAiPanel = ref(false)
+const showPurchaseDialog = ref(false)
 
 const bookRating = computed(() => book.value?.rating ?? 0)
 const bookRatingMax = computed(() => book.value?.ratingMax ?? 5)
@@ -51,10 +55,35 @@ const isInLibrary = computed(() =>
   book.value ? booksStore.books.some((b) => b.id === book.value!.id) : false,
 )
 
-const purchaseLabel = computed(() => {
-  const type = book.value?.purchaseType
-  return type ? purchaseTypeLabel[type] : '—'
-})
+const purchaseLabel = computed(() =>
+  book.value ? formatCatalogPurchaseAttr(book.value) : '—',
+)
+
+const isLocked = computed(() =>
+  book.value ? !purchaseStore.canAccessBook(book.value) : false,
+)
+
+function triggerFileDownload(url: string, filename: string) {
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.target = '_blank'
+  link.rel = 'noopener'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+function guardPaidAccess(onAllowed: () => void) {
+  if (!book.value) return
+  if (isLocked.value) {
+    requireLogin(() => {
+      showPurchaseDialog.value = true
+    }, '请先登录后再购买')
+    return
+  }
+  onAllowed()
+}
 
 const loadBook = async (id: string) => {
   loading.value = true
@@ -112,9 +141,11 @@ const startReading = () => {
     return
   }
   const readerPath = `/read/${book.value.id}`
-  requireLogin(async () => {
-    await ensureCurrentBookInLibrary()
-    void router.push(readerPath)
+  requireLogin(() => {
+    guardPaidAccess(async () => {
+      await ensureCurrentBookInLibrary()
+      void router.push(readerPath)
+    })
   }, '请先登录后再阅读', readerPath)
 }
 
@@ -124,15 +155,26 @@ const downloadEdition = () => {
     return
   }
   const edition = selectedEdition.value
-  requireLogin(async () => {
-    try {
-      await downloadCatalogEdition(book.value!.id, edition.id)
-      ElMessage.success(`开始下载 ${edition.format} 版本（${edition.fileSize}）`)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '下载失败'
-      ElMessage.error(message)
-    }
+  requireLogin(() => {
+    guardPaidAccess(async () => {
+      try {
+        const result = await downloadCatalogEdition(book.value!.id, edition.id)
+        if (result.downloadUrl) {
+          triggerFileDownload(result.downloadUrl, `${book.value!.title}.${edition.format.toLowerCase()}`)
+        }
+        ElMessage.success(result.message || `开始下载 ${edition.format} 版本`)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '下载失败'
+        ElMessage.error(message)
+      }
+    })
   }, '请先登录后再下载')
+}
+
+const openPurchase = () => {
+  requireLogin(() => {
+    showPurchaseDialog.value = true
+  }, '请先登录后再购买')
 }
 
 const openAddToShelf = () => {
@@ -253,7 +295,7 @@ const toggleAi = () => {
       <button
         type="button"
         class="book-intro__download"
-        :disabled="!selectedEdition"
+        :disabled="!selectedEdition || isLocked"
         @click="downloadEdition"
       >
         下载
@@ -266,6 +308,15 @@ const toggleAi = () => {
         AI 助手
       </button>
       <button
+        v-if="isLocked"
+        type="button"
+        class="book-intro__purchase"
+        @click="openPurchase"
+      >
+        积分购买
+      </button>
+      <button
+        v-else
         type="button"
         class="book-intro__read"
         :disabled="!selectedEdition"
@@ -293,6 +344,11 @@ const toggleAi = () => {
       v-model:visible="showAiPanel"
       :book-id="book.id"
       source="book"
+    />
+
+    <BookPurchaseDialog
+      v-model:visible="showPurchaseDialog"
+      :book="book"
     />
   </div>
 
@@ -547,6 +603,22 @@ const toggleAi = () => {
 
 .book-intro__read:hover {
   background: var(--sanko-green-hover);
+}
+
+.book-intro__purchase {
+  padding: 10px 28px;
+  border: none;
+  border-radius: 999px;
+  background: #e8a317;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.book-intro__purchase:hover {
+  background: #d49210;
 }
 
 @media (max-width: 1100px) {

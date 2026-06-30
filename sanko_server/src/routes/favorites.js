@@ -1,8 +1,11 @@
 import { Router } from 'express'
 import { ok } from '../response.js'
 import { store } from '../store.js'
+import { requireAuth } from '../middleware/auth.js'
 
 const router = Router()
+
+router.use(requireAuth)
 
 router.get('/', (_req, res) => {
   res.json(ok([...store.favoriteIds]))

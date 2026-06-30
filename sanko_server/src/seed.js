@@ -1,5 +1,7 @@
 /** 书城种子数据（与前端 catalogBooks.ts 对齐，便于联调） */
 
+import { doupoBook, guimiBook, huozheBook, jieyouBook } from './featuredSeed.js'
+
 export const santiBook = {
   id: 'n0',
   title: '三体',
@@ -103,14 +105,7 @@ export const santiBook = {
   ],
 }
 
-const placeholderBooks = [
-  { id: 'f2', title: '书籍2', author: '作者2', coverColor: '#1a5fb4', coverTitle: '书籍2', purchaseType: 'paid', tags: ['豪门', '热血'] },
-  { id: 'f3', title: '书籍3', author: '作者3', coverColor: '#2d8659', coverTitle: '书籍3', purchaseType: 'free', tags: ['孤儿', '宠物'] },
-  { id: 'f4', title: '书籍4', author: '作者4', coverColor: '#6b3fa0', coverTitle: '书籍4', purchaseType: 'paid', tags: ['种田文', '无敌文'] },
-  { id: 'f5', title: '书籍5', author: '作者5', coverColor: '#b83232', coverTitle: '书籍5', purchaseType: 'free', tags: ['科幻', '硬核'] },
-]
-
-export const catalogBooks = [santiBook, ...placeholderBooks]
+export const catalogBooks = [santiBook, guimiBook, jieyouBook, doupoBook, huozheBook]
 
 export const catalogFilters = {
   categories: [
@@ -124,7 +119,7 @@ export const catalogFilters = {
     { label: '无需积分购买', value: 'free' },
     { label: '需要积分购买', value: 'paid' },
   ],
-  tags: ['豪门', '孤儿', '宠物', '种田文', '无敌文', '科幻', '硬核'],
+  tags: ['豪门', '孤儿', '宠物', '种田文', '无敌文', '科幻', '硬核', '奇幻', '克苏鲁', '升级', '治愈', '温情', '推理', '玄幻', '热血', '文学', '现实', '人生'],
 }
 
 export const defaultSettings = {

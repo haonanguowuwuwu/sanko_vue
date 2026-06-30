@@ -1,8 +1,11 @@
 import { Router } from 'express'
-import { ok } from '../response.js'
+import { ok, fail } from '../response.js'
 import { store } from '../store.js'
+import { requireAuth } from '../middleware/auth.js'
 
 const router = Router()
+
+router.use(requireAuth)
 
 router.get('/summary', (_req, res) => {
   res.json(ok({ ...store.pointsSummary }))
@@ -20,6 +23,10 @@ router.get('/orders', (req, res) => {
 
 router.post('/recharge', (req, res) => {
   const amount = Number(req.body?.amount ?? 0)
+  if (!amount || amount <= 0) {
+    return fail(res, '充值金额无效')
+  }
+  const method = req.body?.method ?? req.body?.channel ?? '测试'
   const points = Math.floor(amount * 10)
   store.pointsSummary.balance += points
   store.pointsSummary.totalEarned += points
@@ -29,7 +36,7 @@ router.post('/recharge', (req, res) => {
     type: 'recharge',
     change: points,
     balance: store.pointsSummary.balance,
-    description: `积分充值-${req.body?.channel ?? '测试'}`,
+    description: `积分充值-${method === 'wechat' ? '微信' : method === 'alipay' ? '支付宝' : method}`,
     status: 'completed',
   }
   store.pointsOrders.unshift(order)

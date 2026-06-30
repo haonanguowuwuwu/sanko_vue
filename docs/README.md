@@ -2,10 +2,13 @@
 
 本目录为前端 `sanko_read` 与后端的接口契约，供后端实现与联调使用。
 
+**当前版本：2.0.0** — 详见 [**VERSION_2.0.md**](./VERSION_2.0.md)
+
 ## 文档索引
 
 | 文件 | 读者 | 说明 |
 |------|------|------|
+| [**VERSION_2.0.md**](./VERSION_2.0.md) | **全员（版本必读）** | 2.0 功能清单、新增接口、联调验证、已知限制 |
 | [**INTEGRATION.md**](./INTEGRATION.md) | **后端 / 前端（联调必读）** | 如何关闭 Mock、验证真接口、分期联调步骤 |
 | [**FRONTEND_DATA_AND_MOCK.md**](./FRONTEND_DATA_AND_MOCK.md) | **前端 / 后端** | 各页面需要什么数据、哪些仍是内置 Mock / 静态、对接顺序 |
 | [**BACKEND_API.md**](./BACKEND_API.md) | **后端（首选）** | 完整需求：数据模型、全部接口、页面映射、实现优先级 |
@@ -14,11 +17,10 @@
 
 ## 后端快速开始
 
-1. **先读 [INTEGRATION.md](./INTEGRATION.md)** — 了解默认 Mock 行为及如何关闭
-2. 阅读 [BACKEND_API.md](./BACKEND_API.md) 第 2 节（通用约定）和第 8 节（实现优先级）
-3. 按 **P0** 先实现：认证 → 书库 → `file-url` → 进度 → 书架 → 喜欢
-4. 将 [openapi.yaml](./openapi.yaml) 导入 Apifox 进行自测
-5. 联调时前端在 `sanko_read/.env.development` 设置 `VITE_USE_MOCK=false`（详见 INTEGRATION.md）
+1. **先读 [VERSION_2.0.md](./VERSION_2.0.md)** — 了解 2.0 功能与联调清单
+2. **再读 [INTEGRATION.md](./INTEGRATION.md)** — 了解如何关闭 Mock
+3. 接口细节见 [BACKEND_API.md](./BACKEND_API.md)；可导入 [openapi.yaml](./openapi.yaml) 到 Apifox
+4. 启动小后端 `sanko_server`（8083），前端 `VITE_USE_MOCK=false`（详见 INTEGRATION.md）
 
 ## 前端源码对照
 
