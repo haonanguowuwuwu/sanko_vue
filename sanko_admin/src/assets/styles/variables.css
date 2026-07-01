@@ -1,0 +1,35 @@
+:root {
+  --admin-primary: #005a2b;
+  --admin-primary-hover: #004522;
+  --admin-primary-soft: rgba(0, 90, 43, 0.08);
+  --admin-bg: #f0f2f5;
+  --admin-sidebar-bg: #001529;
+  --admin-sidebar-text: rgba(255, 255, 255, 0.75);
+  --admin-sidebar-active: #005a2b;
+  --admin-header-bg: #ffffff;
+  --admin-card-bg: #ffffff;
+  --admin-text: #1a1a1a;
+  --admin-text-secondary: #666666;
+  --admin-border: #e8e8e8;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  color: var(--admin-text);
+  background: var(--admin-bg);
+}
