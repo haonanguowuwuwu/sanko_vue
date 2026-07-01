@@ -27,6 +27,7 @@ export interface AdminBook {
   synopsis: string
   tableOfContents: string[]
   previewExcerpt: string
+  fullContent?: string
   rejectReason?: string
 }
 

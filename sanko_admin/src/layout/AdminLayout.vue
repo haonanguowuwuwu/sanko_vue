@@ -33,7 +33,7 @@ const goProfile = () => {
 const handleLogout = async () => {
   try {
     await ElMessageBox.confirm('确定退出登录？', '退出', { type: 'warning' })
-    auth.logout()
+    await auth.logout()
     ElMessage.success('已退出登录')
     void router.push({ name: 'login' })
   } catch {

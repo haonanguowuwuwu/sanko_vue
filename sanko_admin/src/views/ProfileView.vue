@@ -25,13 +25,15 @@ const saveProfile = async () => {
     return
   }
   saving.value = true
-  await new Promise((r) => setTimeout(r, 300))
-  auth.updateProfile({
-    username: form.username.trim(),
-    email: form.email.trim(),
-  })
-  saving.value = false
-  ElMessage.success('资料已保存')
+  try {
+    await auth.updateProfile({
+      username: form.username.trim(),
+      email: form.email.trim(),
+    })
+    ElMessage.success('资料已保存')
+  } finally {
+    saving.value = false
+  }
 }
 
 const changePassword = async () => {
@@ -43,11 +45,16 @@ const changePassword = async () => {
     ElMessage.warning('两次输入的新密码不一致')
     return
   }
-  await new Promise((r) => setTimeout(r, 300))
-  passwordForm.current = ''
-  passwordForm.next = ''
-  passwordForm.confirm = ''
-  ElMessage.success('密码已更新')
+  try {
+    await auth.changePassword(passwordForm.current, passwordForm.next)
+    passwordForm.current = ''
+    passwordForm.next = ''
+    passwordForm.confirm = ''
+    ElMessage.success('密码已更新')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '密码更新失败'
+    ElMessage.error(message)
+  }
 }
 </script>
 

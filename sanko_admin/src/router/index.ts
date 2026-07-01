@@ -41,6 +41,12 @@ const router = createRouter({
           component: () => import('@/views/books/BookListView.vue'),
         },
         {
+          path: 'books/:id/review',
+          name: 'book-review',
+          meta: { title: '书籍审核' },
+          component: () => import('@/views/books/BookReviewView.vue'),
+        },
+        {
           path: 'comments',
           name: 'comments',
           meta: { title: '评论管理' },
@@ -79,8 +85,11 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAdminAuthStore()
+  if (!auth.initialized) {
+    await auth.initAuth()
+  }
   if (to.meta.public) {
     if (to.name === 'login' && auth.isLoggedIn) {
       return { name: 'dashboard' }

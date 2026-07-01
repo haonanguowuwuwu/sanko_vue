@@ -1,5 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import { adminApi } from '@/api/admin'
+import { ApiError } from '@/api/request'
 import {
   ADMIN_PROFILE_KEY,
   ADMIN_TOKEN_KEY,
@@ -20,7 +22,7 @@ function loadProfile(): AdminProfile | null {
 export const useAdminAuthStore = defineStore('adminAuth', () => {
   const token = ref<string | null>(localStorage.getItem(ADMIN_TOKEN_KEY))
   const profile = ref<AdminProfile | null>(loadProfile())
-  const initialized = ref(true)
+  const initialized = ref(false)
 
   const isLoggedIn = computed(() => Boolean(token.value))
 
@@ -31,32 +33,55 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
     localStorage.setItem(ADMIN_PROFILE_KEY, JSON.stringify(result.profile))
   }
 
-  /** 本地 mock 登录，后续替换为真实 API */
+  async function initAuth() {
+    if (initialized.value) return
+    if (!token.value) {
+      initialized.value = true
+      return
+    }
+    try {
+      const me = await adminApi.me()
+      profile.value = me
+      localStorage.setItem(ADMIN_PROFILE_KEY, JSON.stringify(me))
+    } catch {
+      await logout()
+    } finally {
+      initialized.value = true
+    }
+  }
+
   async function login(username: string, password: string) {
-    await new Promise((r) => setTimeout(r, 400))
     if (!username.trim() || !password) {
       throw new Error('请输入用户名和密码')
     }
-    const result: AdminLoginResult = {
-      token: `admin-token-${Date.now()}`,
-      profile: {
-        id: 'admin-1',
-        username: username.trim(),
-        email: `${username.trim()}@sanko.admin`,
-        role: '超级管理员',
-        lastLoginAt: new Date().toLocaleString('zh-CN'),
-      },
-    }
+    const result = await adminApi.login({ username: username.trim(), password })
     persist(result)
   }
 
-  function updateProfile(patch: Partial<Pick<AdminProfile, 'username' | 'email'>>) {
+  async function updateProfile(patch: Partial<Pick<AdminProfile, 'username' | 'email'>>) {
     if (!profile.value) return
-    profile.value = { ...profile.value, ...patch }
+    const updated = await adminApi.updateProfile({
+      username: patch.username ?? profile.value.username,
+      email: patch.email ?? profile.value.email,
+    })
+    profile.value = { ...profile.value, ...updated }
     localStorage.setItem(ADMIN_PROFILE_KEY, JSON.stringify(profile.value))
   }
 
-  function logout() {
+  async function changePassword(current: string, next: string) {
+    await adminApi.changePassword({ current, next })
+  }
+
+  async function logout() {
+    if (token.value) {
+      try {
+        await adminApi.logout()
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.code !== 401) {
+          // 忽略登出失败，仍清除本地状态
+        }
+      }
+    }
     token.value = null
     profile.value = null
     localStorage.removeItem(ADMIN_TOKEN_KEY)
@@ -68,8 +93,10 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
     profile,
     initialized,
     isLoggedIn,
+    initAuth,
     login,
     updateProfile,
+    changePassword,
     logout,
   }
 })

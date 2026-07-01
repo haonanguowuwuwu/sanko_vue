@@ -1,23 +1,23 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
-import BookReviewDrawer from '@/components/books/BookReviewDrawer.vue'
 import { useClientPagination } from '@/composables/useClientPagination'
 import { useAdminDataStore } from '@/stores/adminData'
 import type { AdminBook, BookStatus } from '@/types/modules'
 
 const store = useAdminDataStore()
 const route = useRoute()
+const router = useRouter()
 
 const keyword = ref('')
 const searchKeyword = ref('')
 const activeTab = ref<BookStatus | 'all'>('approved')
 const dialogVisible = ref(false)
 const editingId = ref<string | null>(null)
-const reviewBookId = ref<string | null>(null)
+const submitting = ref(false)
 
 const form = reactive({
   title: '',
@@ -56,15 +56,7 @@ const handleSearch = () => {
 }
 
 const openReview = (row: AdminBook) => {
-  reviewBookId.value = row.id
-}
-
-const closeReview = () => {
-  reviewBookId.value = null
-}
-
-const onReviewUpdated = () => {
-  resetPage()
+  void router.push({ name: 'book-review', params: { id: row.id } })
 }
 
 const openCreate = () => {
@@ -85,7 +77,8 @@ const openEdit = (row: AdminBook) => {
   dialogVisible.value = true
 }
 
-const submitForm = () => {
+const submitForm = async () => {
+  if (submitting.value) return
   if (!form.title.trim() || !form.author.trim()) {
     ElMessage.warning('请填写书名和作者')
     return
@@ -96,21 +89,37 @@ const submitForm = () => {
     category: form.category.trim() || '未分类',
     purchaseType: form.purchaseType,
   }
-  if (editingId.value) {
-    store.updateBook(editingId.value, payload)
-    ElMessage.success('书籍已更新')
-  } else {
-    store.createBook(payload)
-    ElMessage.success('书籍已创建')
+  submitting.value = true
+  try {
+    if (editingId.value) {
+      const existing = store.getBookById(editingId.value)
+      if (
+        existing &&
+        existing.title === payload.title &&
+        existing.author === payload.author &&
+        existing.category === payload.category &&
+        existing.purchaseType === payload.purchaseType
+      ) {
+        dialogVisible.value = false
+        return
+      }
+      await store.updateBook(editingId.value, payload)
+      ElMessage.success('书籍已更新')
+    } else {
+      await store.createBook(payload)
+      ElMessage.success('书籍已创建')
+    }
+    dialogVisible.value = false
+    resetPage()
+  } finally {
+    submitting.value = false
   }
-  dialogVisible.value = false
-  resetPage()
 }
 
 const handleOffline = async (row: AdminBook) => {
   try {
     await ElMessageBox.confirm(`确定下架《${row.title}》？`, '下架书籍', { type: 'warning' })
-    store.setBookStatus(row.id, 'offline')
+    await store.setBookStatus(row.id, 'offline')
     ElMessage.success('已下架')
     resetPage()
   } catch {
@@ -213,12 +222,6 @@ onMounted(() => {
       </div>
     </el-card>
 
-    <BookReviewDrawer
-      :book-id="reviewBookId"
-      @close="closeReview"
-      @updated="onReviewUpdated"
-    />
-
     <el-dialog
       v-model="dialogVisible"
       :title="editingId ? '编辑书籍' : '新建书籍'"
@@ -244,7 +247,7 @@ onMounted(() => {
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm">确定</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm">确定</el-button>
       </template>
     </el-dialog>
   </div>
